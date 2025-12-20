@@ -1,0 +1,43 @@
+# --- GENERAL ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# --- SEGURIDAD (¡Muy Importante!) ---
+# Ignorar cualquier archivo .env en cualquier carpeta
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# --- BACKEND (GO) ---
+# Ignorar binarios compilados
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+backend/main  # Binario en linux/mac
+backend/sports-analytics-backend # Nombre del modulo si se compila
+
+# Ignorar carpeta de vendor si la usaras (no es tu caso ahora, pero por si acaso)
+vendor/
+
+# --- FRONTEND (NODE/JS) ---
+# Dependencias (nunca se suben)
+node_modules/
+frontend/node_modules/
+
+# Builds de producción
+build/
+dist/
+.output/
+
+# Archivos de depuración
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
