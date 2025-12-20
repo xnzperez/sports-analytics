@@ -16,7 +16,18 @@ func NewHandler(db *gorm.DB) *Handler {
 	return &Handler{service: service}
 }
 
-// PlaceBet crea una nueva apuesta
+// PlaceBet crea una nueva apuesta en el sistema.
+// @Summary      Crear una nueva apuesta
+// @Description  Permite al usuario registrar una apuesta, descontando saldo automáticamente.
+// @Tags         Apuestas
+// @Accept       json
+// @Produce      json
+// @Param        request body PlaceBetRequest true "Datos de la apuesta"
+// @Success      201  {object}  map[string]interface{} "Apuesta creada exitosamente"
+// @Failure      400  {object}  map[string]interface{} "Error de validación o saldo insuficiente"
+// @Failure      500  {object}  map[string]interface{} "Error interno del servidor"
+// @Router       /api/bets [post]
+// @Security     Bearer
 func (h *Handler) PlaceBet(c *fiber.Ctx) error {
 	// 1. Obtener ID del usuario
 	userIDStr := c.Locals("user_id").(string)
@@ -53,7 +64,19 @@ type ResolveBetRequest struct {
 	Outcome string `json:"outcome"` // "WON" o "LOST"
 }
 
-// ResolveBetHandler gestiona la resolución de la apuesta
+// ResolveBetHandler define el resultado de una apuesta.
+// @Summary      Resolver una apuesta (Ganada/Perdida)
+// @Description  Actualiza el estado de la apuesta. Si es WON, paga al usuario y genera la transacción.
+// @Tags         Apuestas
+// @Accept       json
+// @Produce      json
+// @Param        id       path      string             true  "ID de la apuesta (UUID)"
+// @Param        request  body      ResolveBetRequest  true  "Resultado (WON/LOST)"
+// @Success      200      {object}  map[string]interface{} "Apuesta resuelta correctamente"
+// @Failure      400      {object}  map[string]interface{} "Error de validación"
+// @Failure      500      {object}  map[string]interface{} "Error interno"
+// @Router       /api/bets/{id}/resolve [patch]
+// @Security     Bearer
 func (h *Handler) ResolveBetHandler(c *fiber.Ctx) error {
 	betID := c.Params("id")
 
@@ -84,6 +107,20 @@ func (h *Handler) ResolveBetHandler(c *fiber.Ctx) error {
 	})
 }
 
+// GetBetsHandler obtiene el historial de apuestas con filtros.
+// @Summary      Listar apuestas del usuario
+// @Description  Obtiene las apuestas paginadas. Permite filtrar por estado o deporte.
+// @Tags         Apuestas
+// @Accept       json
+// @Produce      json
+// @Param        page       query     int     false  "Número de página (default 1)"
+// @Param        limit      query     int     false  "Items por página (default 10)"
+// @Param        status     query     string  false  "Filtrar por estado (pending, WON, LOST)"
+// @Param        sport_key  query     string  false  "Filtrar por deporte (cs2, nba)"
+// @Success      200        {object}  GetBetsResponse
+// @Failure      500        {object}  map[string]interface{} "Error interno"
+// @Router       /api/bets [get]
+// @Security     Bearer
 func (h *Handler) GetBetsHandler(c *fiber.Ctx) error {
 	userIDStr := c.Locals("user_id").(string)
 	userID, _ := uuid.Parse(userIDStr)
@@ -113,6 +150,16 @@ func (h *Handler) GetBetsHandler(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(response)
 }
 
+// GetStatsHandler calcula el rendimiento financiero del usuario.
+// @Summary      Obtener estadísticas (ROI, WinRate)
+// @Description  Calcula métricas clave como ganancia neta, porcentaje de aciertos y total apostado.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200      {object}  StatsResponse
+// @Failure      500      {object}  map[string]interface{} "Error interno"
+// @Router       /api/stats [get]
+// @Security     Bearer
 func (h *Handler) GetStatsHandler(c *fiber.Ctx) error {
 	userIDStr := c.Locals("user_id").(string)
 	userID, _ := uuid.Parse(userIDStr)
@@ -128,6 +175,18 @@ func (h *Handler) GetStatsHandler(c *fiber.Ctx) error {
 }
 
 // GetTransactionsHandler maneja la petición del historial
+// GetTransactionsHandler obtiene el extracto bancario.
+// @Summary      Historial de Transacciones
+// @Description  Muestra los movimientos de dinero (depósitos, apuestas, pagos) paginados.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param        page   query     int  false  "Número de página"
+// @Param        limit  query     int  false  "Items por página"
+// @Success      200    {object}  GetTransactionsResponse
+// @Failure      500    {object}  map[string]interface{} "Error interno"
+// @Router       /api/transactions [get]
+// @Security     Bearer
 func (h *Handler) GetTransactionsHandler(c *fiber.Ctx) error {
 	userIDStr := c.Locals("user_id").(string)
 	userID, _ := uuid.Parse(userIDStr)

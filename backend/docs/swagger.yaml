@@ -1,0 +1,306 @@
+basePath: /
+definitions:
+  betting.Bet:
+    properties:
+      ai_prediction:
+        description: |-
+          --- CORRECCIÓN ---
+          Usamos `column:ai_prediction` para evitar que GORM genere "a_iprediction".
+          Usamos *string (puntero) para que si no hay predicción, se guarde como NULL en la BD.
+        type: string
+      created_at:
+        type: string
+      details:
+        description: |-
+          Details se guarda como JSONB en Postgres para poder hacer consultas avanzadas dentro del JSON en el futuro.
+          En Go lo manejamos como string (o []byte) conteniendo el JSON crudo.
+        type: string
+      id:
+        type: string
+      is_parlay:
+        type: boolean
+      odds:
+        type: number
+      resulted_at:
+        description: Puntero porque inicialmente es NULL
+        type: string
+      sport_key:
+        description: 'Ej: "cs2", "nba"'
+        type: string
+      stake_units:
+        type: number
+      status:
+        type: string
+      title:
+        type: string
+      user_id:
+        type: string
+      user_notes:
+        type: string
+    type: object
+  betting.GetBetsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/betting.Bet'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  betting.GetTransactionsResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/betting.Transaction'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  betting.PlaceBetRequest:
+    type: object
+  betting.ResolveBetRequest:
+    properties:
+      outcome:
+        description: '"WON" o "LOST"'
+        type: string
+    type: object
+  betting.StatsResponse:
+    properties:
+      net_profit:
+        description: Ganancia/Pérdida neta
+        type: number
+      roi:
+        description: Retorno de Inversión (%)
+        type: number
+      total_bets:
+        type: integer
+      total_lost:
+        type: integer
+      total_pending:
+        type: integer
+      total_returned:
+        description: Total recibido (ganancias + stake devuelto)
+        type: number
+      total_wagered:
+        description: Total apostado
+        type: number
+      total_won:
+        type: integer
+      win_rate:
+        description: '% de aciertos'
+        type: number
+    type: object
+  betting.Transaction:
+    properties:
+      amount:
+        description: Positivo (Depósito/Ganancia) o Negativo (Apuesta/Retiro)
+        type: number
+      created_at:
+        type: string
+      description:
+        description: 'Ej: "Apuesta en Vitality vs G2"'
+        type: string
+      id:
+        type: string
+      reference_id:
+        description: ID de la apuesta relacionada (si aplica)
+        type: string
+      type:
+        description: '"BET_PLACED", "BET_PAYOUT", "DEPOSIT"'
+        type: string
+      user_id:
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact:
+    email: xnzperez.dev@gmail.com
+    name: Carlos Pérez
+  description: API profesional para seguimiento de apuestas y estadísticas deportivas.
+  title: Sports Analytics API
+  version: "1.0"
+paths:
+  /api/bets:
+    get:
+      consumes:
+      - application/json
+      description: Obtiene las apuestas paginadas. Permite filtrar por estado o deporte.
+      parameters:
+      - description: Número de página (default 1)
+        in: query
+        name: page
+        type: integer
+      - description: Items por página (default 10)
+        in: query
+        name: limit
+        type: integer
+      - description: Filtrar por estado (pending, WON, LOST)
+        in: query
+        name: status
+        type: string
+      - description: Filtrar por deporte (cs2, nba)
+        in: query
+        name: sport_key
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/betting.GetBetsResponse'
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Bearer: []
+      summary: Listar apuestas del usuario
+      tags:
+      - Apuestas
+    post:
+      consumes:
+      - application/json
+      description: Permite al usuario registrar una apuesta, descontando saldo automáticamente.
+      parameters:
+      - description: Datos de la apuesta
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/betting.PlaceBetRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Apuesta creada exitosamente
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Error de validación o saldo insuficiente
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Error interno del servidor
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Bearer: []
+      summary: Crear una nueva apuesta
+      tags:
+      - Apuestas
+  /api/bets/{id}/resolve:
+    patch:
+      consumes:
+      - application/json
+      description: Actualiza el estado de la apuesta. Si es WON, paga al usuario y
+        genera la transacción.
+      parameters:
+      - description: ID de la apuesta (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Resultado (WON/LOST)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/betting.ResolveBetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Apuesta resuelta correctamente
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Error de validación
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Bearer: []
+      summary: Resolver una apuesta (Ganada/Perdida)
+      tags:
+      - Apuestas
+  /api/stats:
+    get:
+      consumes:
+      - application/json
+      description: Calcula métricas clave como ganancia neta, porcentaje de aciertos
+        y total apostado.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/betting.StatsResponse'
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Bearer: []
+      summary: Obtener estadísticas (ROI, WinRate)
+      tags:
+      - Analytics
+  /api/transactions:
+    get:
+      consumes:
+      - application/json
+      description: Muestra los movimientos de dinero (depósitos, apuestas, pagos)
+        paginados.
+      parameters:
+      - description: Número de página
+        in: query
+        name: page
+        type: integer
+      - description: Items por página
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/betting.GetTransactionsResponse'
+        "500":
+          description: Error interno
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - Bearer: []
+      summary: Historial de Transacciones
+      tags:
+      - Analytics
+securityDefinitions:
+  Bearer:
+    description: '"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjY1MTQ2NDgsInVzZXJfaWQiOiJkYTE4ZGFkZC1lMmVhLTRhMjAtYTNjOS1jNzUxZWQ1ZjFiNWYiLCJ1c2VybmFtZSI6InhuenBlcmV6In0.QqWkJ1FvpMFO8aBf1WJblPYj_ZSkceDSSs4jhwBi7Wg"'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

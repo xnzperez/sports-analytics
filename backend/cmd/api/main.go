@@ -14,9 +14,24 @@ import (
 	"github.com/xnzperez/sports-analytics-backend/internal/betting"
 	"github.com/xnzperez/sports-analytics-backend/internal/platform/database"
 
+	// --- SWAGGER IMPORTS ---
+	fiberSwagger "github.com/swaggo/fiber-swagger"        // fiber-swagger middleware
+	_ "github.com/xnzperez/sports-analytics-backend/docs" // <--- Importante: Esto carga los archivos generados
+
 	"github.com/joho/godotenv"
 )
 
+// @title           Sports Analytics API
+// @version         1.0
+// @description     API profesional para seguimiento de apuestas y estadísticas deportivas.
+// @contact.name    Carlos Pérez
+// @contact.email   xnzperez.dev@gmail.com
+// @host            localhost:3000
+// @BasePath        /
+// @securityDefinitions.apikey Bearer
+// @in header
+// @name Authorization
+// @description "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjY1MTQ2NDgsInVzZXJfaWQiOiJkYTE4ZGFkZC1lMmVhLTRhMjAtYTNjOS1jNzUxZWQ1ZjFiNWYiLCJ1c2VybmFtZSI6InhuenBlcmV6In0.QqWkJ1FvpMFO8aBf1WJblPYj_ZSkceDSSs4jhwBi7Wg"
 func main() {
 	// 1. Cargar Variables de Entorno
 	if err := godotenv.Load(".env"); err != nil {
@@ -25,28 +40,26 @@ func main() {
 
 	// 2. Conectar a Base de Datos
 	database.Connect()
-
-	// 3. Ejecutar Migraciones
 	database.Migrate()
 
-	// 4. Inicializar Fiber
+	// 3. Inicializar Fiber
 	app := fiber.New(fiber.Config{
 		AppName: "Sports Analytics API v1",
 	})
 
-	// 5. Middlewares
+	// 4. Middlewares
 	app.Use(logger.New())
 	app.Use(recover.New())
 	app.Use(cors.New())
 
-	// 6. INICIALIZACIÓN DE HANDLERS
-	// Aquí inyectamos la conexión a DB a cada módulo
+	// 5. INICIALIZACIÓN DE HANDLERS
 	authHandler := auth.NewHandler(database.Instance)
 	bettingHandler := betting.NewHandler(database.Instance)
 
-	// 7. DEFINICIÓN DE RUTAS
+	// 6. RUTA DE DOCUMENTACIÓN (SWAGGER)
+	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
-	// --- A. Rutas Públicas ---
+	// 7. DEFINICIÓN DE RUTAS
 	app.Get("/health", func(c *fiber.Ctx) error {
 		sqlDB, _ := database.Instance.DB()
 		if err := sqlDB.Ping(); err != nil {
@@ -55,25 +68,19 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok", "message": "Systems Operational 🚀"})
 	})
 
-	// Grupo Auth
 	authGroup := app.Group("/auth")
 	authGroup.Post("/register", authHandler.Register)
 	authGroup.Post("/login", authHandler.Login)
 
-	// --- B. Rutas Privadas / Protegidas (Requieren Token) ---
-	// Usamos "api :=" una sola vez aquí para agrupar todo lo que requiere JWT
 	api := app.Group("/api", auth.Protected())
-
-	// Rutas de Usuario
 	api.Get("/me", authHandler.GetMe)
 
-	// Rutas de Apuestas (Betting)
+	// Betting Routes
 	api.Post("/bets", bettingHandler.PlaceBet)
-	api.Get("/bets", bettingHandler.GetBetsHandler)
-	// --- NUEVA RUTA AGREGADA ---
-	// Usamos PATCH porque estamos actualizando parcialmente el recurso (cambiando el estado)
-	// :id es el parámetro que Fiber capturará
 	api.Patch("/bets/:id/resolve", bettingHandler.ResolveBetHandler)
+	api.Get("/bets", bettingHandler.GetBetsHandler)
+
+	// Analytics & Ledger
 	api.Get("/stats", bettingHandler.GetStatsHandler)
 	api.Get("/transactions", bettingHandler.GetTransactionsHandler)
 
