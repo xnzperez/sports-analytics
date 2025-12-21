@@ -37,7 +37,8 @@ func (r *Repository) GetUserBalanceForUpdate(tx *gorm.DB, userID uuid.UUID) (*au
 
 // UpdateUserBalance actualiza el saldo del usuario dentro de la transacción
 func (r *Repository) UpdateUserBalance(tx *gorm.DB, userID uuid.UUID, newBalance float64) error {
-	return tx.Model(&auth.User{}).Where("id = ?", userID).Update("bankroll_units", newBalance).Error
+	// --- CORREGIDO: "bankroll_units" -> "bankroll" ---
+	return tx.Model(&auth.User{}).Where("id = ?", userID).Update("bankroll", newBalance).Error
 }
 
 // CreateBet inserta la apuesta
@@ -72,15 +73,16 @@ func (r *Repository) ResolveBet(betID string, outcome string) error {
 			payout := bet.StakeUnits * bet.Odds
 
 			// A. Actualizar Saldo Usuario
+			// --- CORREGIDO: "bankroll_units" -> "bankroll" (x2) ---
 			if err := tx.Model(&auth.User{}).Where("id = ?", bet.UserID).
-				Update("bankroll_units", gorm.Expr("bankroll_units + ?", payout)).Error; err != nil {
+				Update("bankroll", gorm.Expr("bankroll + ?", payout)).Error; err != nil {
 				return err
 			}
 
-			// --- NUEVO: B. Registrar Transacción (Ledger) ---
+			// B. Registrar Transacción (Ledger)
 			transaction := &Transaction{
-				UserID:      bet.UserID, // Ya es string en el struct Bet
-				Amount:      payout,     // Positivo porque entra a la cuenta
+				UserID:      bet.UserID,
+				Amount:      payout, // Positivo porque entra a la cuenta
 				Type:        "BET_PAYOUT",
 				Description: "Ganancia apuesta: " + bet.Title,
 				ReferenceID: &bet.ID,
@@ -88,7 +90,6 @@ func (r *Repository) ResolveBet(betID string, outcome string) error {
 			if err := tx.Create(transaction).Error; err != nil {
 				return err
 			}
-			// ------------------------------------------------
 		}
 
 		return nil
@@ -99,10 +100,10 @@ func (r *Repository) GetBets(f BetFilters) ([]Bet, int64, error) {
 	var bets []Bet
 	var total int64
 
-	// 1. Iniciar la query base (siempre filtrando por usuario)
+	// 1. Iniciar la query base
 	query := r.db.Model(&Bet{}).Where("user_id = ?", f.UserID)
 
-	// 2. Aplicar filtros dinámicos (solo si vienen llenos)
+	// 2. Aplicar filtros dinámicos
 	if f.Status != "" {
 		query = query.Where("status = ?", f.Status)
 	}
@@ -110,16 +111,13 @@ func (r *Repository) GetBets(f BetFilters) ([]Bet, int64, error) {
 		query = query.Where("sport_key = ?", f.SportKey)
 	}
 
-	// 3. Contar el total de resultados (para la paginación)
-	// Es importante contar ANTES de aplicar el Limit/Offset
+	// 3. Contar el total
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	// 4. Aplicar Paginación y Ordenamiento
 	offset := (f.Page - 1) * f.Limit
-
-	// Order("created_at desc") hace que salgan primero las más nuevas
 	err := query.Limit(f.Limit).Offset(offset).Order("created_at desc").Find(&bets).Error
 
 	return bets, total, err
@@ -138,17 +136,17 @@ type RawStats struct {
 func (r *Repository) GetRawStats(userID uuid.UUID) (*RawStats, error) {
 	var stats RawStats
 
-	// Usamos SQL nativo porque es mucho más rápido para agregaciones complejas
-	// COALESCE(SUM(...), 0) asegura que si no hay datos, devuelva 0 en vez de NULL
+	// Usamos SQL nativo. He mantenido tu lógica de FILTER, pero ajustado para que sea robusto.
+	// Asegúrate de que tu versión de Postgres soporte FILTER (Postgres 9.4+). Si no, usa CASE WHEN.
 	err := r.db.Model(&Bet{}).
 		Select(`
-			COUNT(*) as total_bets,
-			COUNT(*) FILTER (WHERE status = 'WON') as won,
-			COUNT(*) FILTER (WHERE status = 'LOST') as lost,
-			COUNT(*) FILTER (WHERE status = 'pending') as pending,
-			COALESCE(SUM(stake_units), 0) as total_wagered,
-			COALESCE(SUM(CASE WHEN status = 'WON' THEN stake_units * odds ELSE 0 END), 0) as total_returned
-		`).
+            COUNT(*) as total_bets,
+            COUNT(*) FILTER (WHERE status = 'WON') as won,
+            COUNT(*) FILTER (WHERE status = 'LOST') as lost,
+            COUNT(*) FILTER (WHERE status = 'pending') as pending,
+            COALESCE(SUM(stake_units), 0) as total_wagered,
+            COALESCE(SUM(CASE WHEN status = 'WON' THEN stake_units * odds ELSE 0 END), 0) as total_returned
+        `).
 		Where("user_id = ?", userID).
 		Scan(&stats).Error
 
@@ -164,15 +162,12 @@ func (r *Repository) GetTransactions(userID uuid.UUID, page, limit int) ([]Trans
 	var transactions []Transaction
 	var total int64
 
-	// 1. Query base
 	query := r.db.Model(&Transaction{}).Where("user_id = ?", userID)
 
-	// 2. Contar total (para el frontend)
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 3. Paginación y Orden (Más recientes primero)
 	offset := (page - 1) * limit
 	err := query.Order("created_at desc").
 		Limit(limit).

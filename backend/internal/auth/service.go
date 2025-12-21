@@ -44,7 +44,7 @@ func (s *Service) RegisterUser(req RegisterRequest) error {
 		Username:     req.Username,
 		Email:        req.Email,
 		PasswordHash: string(hashedPassword),
-		// Bankroll inicia en 0 por defecto
+		Bankroll:     1000.00, // <--- Aquí asignamos el bono al campo correcto
 	}
 
 	// 4. Guardar en DB

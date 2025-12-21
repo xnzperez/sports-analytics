@@ -39,3 +39,12 @@ export const loginSchema = z.object({
 // ¡Esto es magia! Si cambias el esquema, el tipo de dato se actualiza solo.
 export type RegisterFormData = z.infer<typeof registerSchema>;
 export type LoginFormData = z.infer<typeof loginSchema>;
+
+// Estructura del usuario que viene del Backend (GET /api/me)
+export interface UserProfile {
+  id: string;
+  email: string;
+  username: string;
+  bankroll: number; // Saldo actual
+  created_at: string;
+}

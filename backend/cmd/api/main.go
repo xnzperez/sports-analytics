@@ -9,16 +9,15 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
-	// Módulos internos
+	// Módulos internos (Mantenemos tu estructura)
 	"github.com/xnzperez/sports-analytics-backend/internal/auth"
 	"github.com/xnzperez/sports-analytics-backend/internal/betting"
 	"github.com/xnzperez/sports-analytics-backend/internal/platform/database"
 
 	// --- SWAGGER IMPORTS ---
-	fiberSwagger "github.com/swaggo/fiber-swagger"        // fiber-swagger middleware
-	_ "github.com/xnzperez/sports-analytics-backend/docs" // <--- Importante: Esto carga los archivos generados
-
 	"github.com/joho/godotenv"
+	fiberSwagger "github.com/swaggo/fiber-swagger"
+	_ "github.com/xnzperez/sports-analytics-backend/docs" // Carga la documentación generada
 )
 
 // @title           Sports Analytics API
@@ -31,14 +30,14 @@ import (
 // @securityDefinitions.apikey Bearer
 // @in header
 // @name Authorization
-// @description "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjY1MTQ2NDgsInVzZXJfaWQiOiJkYTE4ZGFkZC1lMmVhLTRhMjAtYTNjOS1jNzUxZWQ1ZjFiNWYiLCJ1c2VybmFtZSI6InhuenBlcmV6In0.QqWkJ1FvpMFO8aBf1WJblPYj_ZSkceDSSs4jhwBi7Wg"
+// @description "Inserte el token JWT con el prefijo Bearer. Ejemplo: 'Bearer eyJhbGci...'"
 func main() {
 	// 1. Cargar Variables de Entorno
 	if err := godotenv.Load(".env"); err != nil {
 		log.Println("⚠️  No se encontró archivo .env, usando variables del sistema")
 	}
 
-	// 2. Conectar a Base de Datos
+	// 2. Conectar a Base de Datos (Tu método original)
 	database.Connect()
 	database.Migrate()
 
@@ -50,9 +49,15 @@ func main() {
 	// 4. Middlewares
 	app.Use(logger.New())
 	app.Use(recover.New())
-	app.Use(cors.New())
+
+	// CORS Configurado explícitamente para tu Frontend
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "http://localhost:5173", // Permitir React/Vite
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+	}))
 
 	// 5. INICIALIZACIÓN DE HANDLERS
+	// Pasamos la instancia de DB que ya tienes en platform/database
 	authHandler := auth.NewHandler(database.Instance)
 	bettingHandler := betting.NewHandler(database.Instance)
 
@@ -60,6 +65,8 @@ func main() {
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
 
 	// 7. DEFINICIÓN DE RUTAS
+
+	// Health Check
 	app.Get("/health", func(c *fiber.Ctx) error {
 		sqlDB, _ := database.Instance.DB()
 		if err := sqlDB.Ping(); err != nil {
@@ -68,19 +75,24 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok", "message": "Systems Operational 🚀"})
 	})
 
+	// Rutas Públicas (Auth)
 	authGroup := app.Group("/auth")
 	authGroup.Post("/register", authHandler.Register)
 	authGroup.Post("/login", authHandler.Login)
 
+	// --- RUTAS PROTEGIDAS (API) ---
+	// Todo lo que esté debajo de api usa el middleware auth.Protected()
 	api := app.Group("/api", auth.Protected())
+
+	// User Routes
 	api.Get("/me", authHandler.GetMe)
 
-	// Betting Routes
-	api.Post("/bets", bettingHandler.PlaceBet)
-	api.Patch("/bets/:id/resolve", bettingHandler.ResolveBetHandler)
-	api.Get("/bets", bettingHandler.GetBetsHandler)
+	// Betting Routes (Apuestas)
+	api.Post("/bets", bettingHandler.PlaceBet)                       // Crear apuesta
+	api.Get("/bets", bettingHandler.GetBetsHandler)                  // Historial (con filtros)
+	api.Patch("/bets/:id/resolve", bettingHandler.ResolveBetHandler) // Resolver (Ganó/Perdió)
 
-	// Analytics & Ledger
+	// Analytics & Ledger (Transacciones y Estadísticas)
 	api.Get("/stats", bettingHandler.GetStatsHandler)
 	api.Get("/transactions", bettingHandler.GetTransactionsHandler)
 

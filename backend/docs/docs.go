@@ -448,7 +448,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "Bearer": {
-            "description": "\"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjY1MTQ2NDgsInVzZXJfaWQiOiJkYTE4ZGFkZC1lMmVhLTRhMjAtYTNjOS1jNzUxZWQ1ZjFiNWYiLCJ1c2VybmFtZSI6InhuenBlcmV6In0.QqWkJ1FvpMFO8aBf1WJblPYj_ZSkceDSSs4jhwBi7Wg\"",
+            "description": "\"Inserte el token JWT con el prefijo Bearer. Ejemplo: 'Bearer eyJhbGci...'\"",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

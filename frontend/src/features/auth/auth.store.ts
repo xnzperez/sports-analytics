@@ -1,21 +1,19 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
-interface User {
-  id: string;
-  email: string;
-  // Agregaremos más datos aquí después (ej: bankroll)
-}
+// CORRECCIÓN AQUÍ: Agregamos 'type'
+import type { UserProfile } from "./auth.schemas";
+import { getProfile } from "./services/auth.service";
 
 interface AuthState {
   token: string | null;
-  user: User | null;
+  user: UserProfile | null;
   isAuthenticated: boolean;
+
   setToken: (token: string) => void;
+  fetchUser: () => Promise<void>;
   logout: () => void;
 }
 
-// Creamos el store con persistencia (se guarda en localStorage solo)
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -25,16 +23,26 @@ export const useAuthStore = create<AuthState>()(
 
       setToken: (token: string) => {
         set({ token, isAuthenticated: true });
-        // Aquí podríamos decodificar el token para sacar datos del usuario si fuera necesario
+      },
+
+      fetchUser: async () => {
+        try {
+          const user = await getProfile();
+          set({ user });
+        } catch (error) {
+          console.error("Error cargando perfil", error);
+          // Si falla, asumimos token inválido
+          set({ token: null, user: null, isAuthenticated: false });
+        }
       },
 
       logout: () => {
         set({ token: null, user: null, isAuthenticated: false });
-        localStorage.removeItem("auth-storage"); // Limpieza profunda
+        localStorage.removeItem("auth-storage");
       },
     }),
     {
-      name: "auth-storage", // Nombre de la llave en localStorage
+      name: "auth-storage",
     }
   )
 );

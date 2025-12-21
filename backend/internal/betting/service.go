@@ -41,12 +41,14 @@ func (s *Service) PlaceBet(userID uuid.UUID, req PlaceBetRequest) (*Bet, error) 
 		}
 
 		// 2. Verificar Fondos
-		if user.BankrollUnits < req.StakeUnits {
+		// CORREGIDO: Usamos user.Bankroll en lugar de user.BankrollUnits
+		if user.Bankroll < req.StakeUnits {
 			return errors.New("saldo insuficiente para realizar esta apuesta")
 		}
 
 		// 3. Descontar Saldo
-		newBalance := user.BankrollUnits - req.StakeUnits
+		// CORREGIDO: Usamos user.Bankroll en lugar de user.BankrollUnits
+		newBalance := user.Bankroll - req.StakeUnits
 		if err := s.repo.UpdateUserBalance(tx, user.ID, newBalance); err != nil {
 			return err
 		}

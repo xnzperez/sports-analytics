@@ -13,16 +13,14 @@ import (
 type User struct {
 	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	Email        string    `gorm:"unique;not null" json:"email"`
-	PasswordHash string    `gorm:"not null" json:"-"` // json:"-" oculta el pass en las respuestas API
+	PasswordHash string    `gorm:"not null" json:"-"`
 	Username     string    `gorm:"unique;not null" json:"username"`
 
-	// Manejo de Dinero (Bankroll)
-	// Usamos float64 para mapear DECIMAL en Go, aunque para cálculos
-	// precisos se recomienda librerías como 'shopspring/decimal'.
-	// Para este MVP, float64 es suficiente si redondeamos bien.
-	BankrollUnits    float64 `gorm:"default:0.00" json:"bankroll_units"`
-	BankrollCurrency float64 `gorm:"default:0.00" json:"bankroll_currency"`
-	CurrencyCode     string  `gorm:"default:'USD'" json:"currency_code"`
+	// --- CAMBIO: Simplificación para MVP ---
+	// Usamos un solo campo 'Bankroll' para que coincida con el Frontend (json:"bankroll")
+	// type:decimal(15,2) asegura precisión monetaria en la base de datos
+	Bankroll float64 `gorm:"default:0.00;type:decimal(15,2)" json:"bankroll"`
+	// ---------------------------------------
 
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
