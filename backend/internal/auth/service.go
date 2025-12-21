@@ -20,9 +20,9 @@ func NewService(repo *Repository) *Service {
 
 // RegisterRequest define qué datos necesitamos del Frontend (DTO)
 type RegisterRequest struct {
-	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Username string `json:"username"`
 }
 
 func (s *Service) RegisterUser(req RegisterRequest) error {

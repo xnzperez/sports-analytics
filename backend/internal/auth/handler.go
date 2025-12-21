@@ -24,9 +24,16 @@ func (h *Handler) Register(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Datos inválidos"})
 	}
 
-	// 2. Validaciones básicas
-	if req.Email == "" || req.Password == "" || req.Username == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Todos los campos son obligatorios"})
+	// --- CORRECCIÓN ---
+	// Si el usuario no envía Username, usamos la parte antes del @ del email o el email completo
+	if req.Username == "" {
+		req.Username = req.Email
+	}
+	// ------------------
+
+	// 2. Validaciones básicas (QUITAMOS req.Username de la condición)
+	if req.Email == "" || req.Password == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "El email y la contraseña son obligatorios"})
 	}
 
 	// 3. Llamar al servicio
