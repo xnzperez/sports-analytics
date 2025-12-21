@@ -1,6 +1,5 @@
 import { api } from "../../../lib/axios";
-import type { CreateBetFormData } from "../betting.schemas";
-
+import type { CreateBetFormData, Bet } from "../betting.schemas"; // <--- Agrega Bet
 // Mapeo simple para enviar al backend lo que espera
 interface PlaceBetRequest {
   title: string;
@@ -22,4 +21,10 @@ export const placeBet = async (data: CreateBetFormData) => {
 
   const response = await api.post("/api/bets", payload);
   return response.data;
+};
+
+export const getBets = async () => {
+  // Pedimos las apuestas ordenadas (el backend ya lo hace)
+  const response = await api.get<{ data: Bet[] }>("/api/bets?limit=20");
+  return response.data.data;
 };

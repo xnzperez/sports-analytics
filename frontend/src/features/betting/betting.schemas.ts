@@ -16,3 +16,16 @@ export const createBetSchema = (currentBankroll: number) =>
   });
 
 export type CreateBetFormData = z.infer<ReturnType<typeof createBetSchema>>;
+
+// Interfaz de la Apuesta que viene del Backend
+export interface Bet {
+  id: string;
+  title: string;
+  sport_key: string;
+  stake_units: number;
+  odds: number;
+  status: "pending" | "WON" | "LOST" | "VOID";
+  potential_payout?: number; // Calculado en el front (stake * odds)
+  created_at: string;
+  match_date: string;
+}

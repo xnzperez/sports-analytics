@@ -12,6 +12,7 @@ import (
 	// Módulos internos (Mantenemos tu estructura)
 	"github.com/xnzperez/sports-analytics-backend/internal/auth"
 	"github.com/xnzperez/sports-analytics-backend/internal/betting"
+	"github.com/xnzperez/sports-analytics-backend/internal/market"
 	"github.com/xnzperez/sports-analytics-backend/internal/platform/database"
 
 	// --- SWAGGER IMPORTS ---
@@ -41,6 +42,9 @@ func main() {
 	database.Connect()
 	database.Migrate()
 
+	// Migrar la Nueva Tabla
+	database.Instance.AutoMigrate(&auth.User{}, &betting.Bet{}, &betting.Transaction{}, &market.Match{}) // <--- Agregar Match
+
 	// 3. Inicializar Fiber
 	app := fiber.New(fiber.Config{
 		AppName: "Sports Analytics API v1",
@@ -60,6 +64,7 @@ func main() {
 	// Pasamos la instancia de DB que ya tienes en platform/database
 	authHandler := auth.NewHandler(database.Instance)
 	bettingHandler := betting.NewHandler(database.Instance)
+	marketHandler := market.NewHandler(database.Instance)
 
 	// 6. RUTA DE DOCUMENTACIÓN (SWAGGER)
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
@@ -95,6 +100,10 @@ func main() {
 	// Analytics & Ledger (Transacciones y Estadísticas)
 	api.Get("/stats", bettingHandler.GetStatsHandler)
 	api.Get("/transactions", bettingHandler.GetTransactionsHandler)
+
+	// Market Routes (Partidos)
+	api.Get("/markets", marketHandler.ListMarketsHandler)
+	api.Post("/admin/sync", marketHandler.SyncMarketsHandler)
 
 	// 8. Arrancar Servidor
 	port := os.Getenv("PORT")

@@ -33,6 +33,9 @@ type Bet struct {
 
 	CreatedAt  time.Time  `gorm:"autoCreateTime" json:"created_at"`
 	ResultedAt *time.Time `json:"resulted_at,omitempty"` // Puntero porque inicialmente es NULL
+
+	ExternalID string `json:"external_id" gorm:"index"` // Index para búsquedas rápidas
+	Provider   string `json:"provider"`                 // 'pinnacle', 'api-sports', etc.
 }
 
 // TableName anula la pluralización por defecto de GORM si fuera necesario,
