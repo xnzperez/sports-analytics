@@ -40,7 +40,7 @@ func main() {
 
 	// 2. Conectar a Base de Datos (Tu método original)
 	database.Connect()
-	database.Migrate()
+	//database.Migrate()
 
 	// Migrar la Nueva Tabla
 	database.Instance.AutoMigrate(&auth.User{}, &betting.Bet{}, &betting.Transaction{}, &market.Match{}) // <--- Agregar Match
@@ -85,6 +85,11 @@ func main() {
 	authGroup.Post("/register", authHandler.Register)
 	authGroup.Post("/login", authHandler.Login)
 
+	// --- RUTAS DE MARKET PÚBLICAS (TEMPORALES) ---
+	// Agregamos "/api" al principio para que coincida con tu navegador
+	app.Post("/api/test-sync", marketHandler.SyncMarketsHandler)
+	app.Get("/api/markets", marketHandler.ListMarketsHandler)
+
 	// --- RUTAS PROTEGIDAS (API) ---
 	// Todo lo que esté debajo de api usa el middleware auth.Protected()
 	api := app.Group("/api", auth.Protected())
@@ -102,7 +107,6 @@ func main() {
 	api.Get("/transactions", bettingHandler.GetTransactionsHandler)
 
 	// Market Routes (Partidos)
-	api.Get("/markets", marketHandler.ListMarketsHandler)
 	api.Post("/admin/sync", marketHandler.SyncMarketsHandler)
 
 	// 8. Arrancar Servidor

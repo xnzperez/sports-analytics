@@ -11,7 +11,7 @@ import (
 // GORM usa los primeros para saber a qué columna mapear.
 // Fiber usa los segundos para saber cómo mostrarlo en la API (JSON).
 type User struct {
-	ID           uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
+	ID           uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
 	Email        string    `gorm:"unique;not null" json:"email"`
 	PasswordHash string    `gorm:"not null" json:"-"`
 	Username     string    `gorm:"unique;not null" json:"username"`

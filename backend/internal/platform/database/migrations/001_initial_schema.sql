@@ -1,6 +1,3 @@
--- Habilitamos la extensión para UUIDs (Identificadores únicos universales)
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- 1. TABLA DE USUARIOS
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

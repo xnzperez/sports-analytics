@@ -2,15 +2,16 @@ package betting
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Bet representa una apuesta en el sistema.
 // Usamos tags de GORM para definir la estructura exacta en la base de datos
 // y tags JSON para la respuesta de la API.
 type Bet struct {
-	ID string `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-
-	UserID string `gorm:"type:uuid;not null" json:"user_id"`
+	ID     uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+	UserID uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
 
 	Title    string `gorm:"not null" json:"title"`
 	IsParlay bool   `gorm:"default:false" json:"is_parlay"`
@@ -47,13 +48,16 @@ func (Bet) TableName() string {
 // Transaction representa cualquier movimiento de dinero en la cuenta del usuario.
 // Esto es vital para auditoría y para mostrar el "Extracto Bancario".
 type Transaction struct {
-	ID          string    `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-	UserID      string    `gorm:"type:uuid;not null" json:"user_id"`
-	Amount      float64   `gorm:"not null" json:"amount"`        // Positivo (Depósito/Ganancia) o Negativo (Apuesta/Retiro)
-	Type        string    `gorm:"not null" json:"type"`          // "BET_PLACED", "BET_PAYOUT", "DEPOSIT"
-	Description string    `json:"description"`                   // Ej: "Apuesta en Vitality vs G2"
-	ReferenceID *string   `gorm:"type:uuid" json:"reference_id"` // ID de la apuesta relacionada (si aplica)
-	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
+	ID          uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	UserID      uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
+	Amount      float64   `gorm:"not null" json:"amount"`
+	Type        string    `gorm:"not null" json:"type"`
+	Description string    `json:"description"`
+
+	// CORREGIDO: Ahora es *uuid.UUID para coincidir con bet.ID
+	ReferenceID *uuid.UUID `gorm:"type:uuid" json:"reference_id"`
+
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
 
 func (Transaction) TableName() string {

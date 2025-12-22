@@ -41,13 +41,11 @@ func (s *Service) PlaceBet(userID uuid.UUID, req PlaceBetRequest) (*Bet, error) 
 		}
 
 		// 2. Verificar Fondos
-		// CORREGIDO: Usamos user.Bankroll en lugar de user.BankrollUnits
 		if user.Bankroll < req.StakeUnits {
 			return errors.New("saldo insuficiente para realizar esta apuesta")
 		}
 
 		// 3. Descontar Saldo
-		// CORREGIDO: Usamos user.Bankroll en lugar de user.BankrollUnits
 		newBalance := user.Bankroll - req.StakeUnits
 		if err := s.repo.UpdateUserBalance(tx, user.ID, newBalance); err != nil {
 			return err
@@ -55,7 +53,7 @@ func (s *Service) PlaceBet(userID uuid.UUID, req PlaceBetRequest) (*Bet, error) 
 
 		// 4. Crear la Apuesta
 		newBet = &Bet{
-			UserID:     userID.String(),
+			UserID:     userID, // CORREGIDO: Pasamos el UUID directo, sin .String()
 			Title:      req.Title,
 			SportKey:   req.SportKey,
 			StakeUnits: req.StakeUnits,
@@ -69,20 +67,19 @@ func (s *Service) PlaceBet(userID uuid.UUID, req PlaceBetRequest) (*Bet, error) 
 			return err
 		}
 
-		// --- NUEVO: 5. Registrar Transacción (Ledger) ---
-		// Registramos que salió dinero (Stake negativo o simplemente el concepto de salida)
-		// Aquí guardamos el monto negativo para indicar egreso visualmente.
+		// 5. Registrar Transacción (Ledger)
 		transaction := &Transaction{
-			UserID:      userID.String(),
-			Amount:      -req.StakeUnits, // Negativo porque sale de la cuenta
+			UserID:      userID, // CORREGIDO: UUID directo
+			Amount:      -req.StakeUnits,
 			Type:        "BET_PLACED",
 			Description: "Apuesta realizada: " + req.Title,
-			ReferenceID: &newBet.ID,
+			ReferenceID: &newBet.ID, // CORREGIDO: Ahora los tipos coinciden (*uuid.UUID)
 		}
+
+		// Nota: Asegúrate de usar tx.Create, no s.repo... para mantener la atomicidad
 		if err := tx.Create(transaction).Error; err != nil {
 			return err
 		}
-		// ------------------------------------------------
 
 		return nil
 	})

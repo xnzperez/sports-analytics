@@ -47,10 +47,18 @@ func (r *Repository) CreateBet(tx *gorm.DB, bet *Bet) error {
 }
 
 // ResolveBet maneja la lógica de ganar/perder y actualiza el saldo atómicamente
-func (r *Repository) ResolveBet(betID string, outcome string) error {
+func (r *Repository) ResolveBet(betIDStr string, outcome string) error {
+
+	// 0. Convertir string a UUID (Validación inicial)
+	betID, err := uuid.Parse(betIDStr)
+	if err != nil {
+		return errors.New("ID de apuesta inválido")
+	}
+
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		// 1. Buscar y bloquear apuesta
 		var bet Bet
+		// GORM maneja la comparación uuid vs uuid automáticamente aquí
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&bet, "id = ?", betID).Error; err != nil {
 			return err
 		}
@@ -73,7 +81,7 @@ func (r *Repository) ResolveBet(betID string, outcome string) error {
 			payout := bet.StakeUnits * bet.Odds
 
 			// A. Actualizar Saldo Usuario
-			// --- CORREGIDO: "bankroll_units" -> "bankroll" (x2) ---
+			// bet.UserID ya es UUID, GORM lo maneja bien en el Where
 			if err := tx.Model(&auth.User{}).Where("id = ?", bet.UserID).
 				Update("bankroll", gorm.Expr("bankroll + ?", payout)).Error; err != nil {
 				return err
@@ -81,11 +89,11 @@ func (r *Repository) ResolveBet(betID string, outcome string) error {
 
 			// B. Registrar Transacción (Ledger)
 			transaction := &Transaction{
-				UserID:      bet.UserID,
-				Amount:      payout, // Positivo porque entra a la cuenta
+				UserID:      bet.UserID, // UUID directo
+				Amount:      payout,
 				Type:        "BET_PAYOUT",
 				Description: "Ganancia apuesta: " + bet.Title,
-				ReferenceID: &bet.ID,
+				ReferenceID: &bet.ID, // Puntero a UUID (*uuid.UUID)
 			}
 			if err := tx.Create(transaction).Error; err != nil {
 				return err
