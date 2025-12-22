@@ -1,8 +1,8 @@
-import axios from 'axios';
+import axios from "axios";
 
 // Definimos la interfaz para que TypeScript nos ayude (puedes omitirlo si usas JS)
 export interface Match {
-  id: string; // Nuestro UUID interno
+  ID: string; // Nuestro UUID interno
   external_id: string;
   league: string;
   home_team: string;
@@ -13,7 +13,7 @@ export interface Match {
   sport_key: string;
 }
 
-const API_URL = 'http://localhost:3000/api'; // O tu variable de entorno
+const API_URL = "http://localhost:3000/api"; // O tu variable de entorno
 
 export const getAvailableMatches = async (): Promise<Match[]> => {
   try {
