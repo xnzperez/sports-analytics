@@ -184,3 +184,12 @@ func (r *Repository) GetTransactions(userID uuid.UUID, page, limit int) ([]Trans
 
 	return transactions, total, err
 }
+
+func (r *Repository) GetUserByID(userID uuid.UUID) (*auth.User, error) {
+	var user auth.User
+	// Buscamos en la tabla users usando el modelo de auth
+	if err := r.db.First(&user, "id = ?", userID).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}

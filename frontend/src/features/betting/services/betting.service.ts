@@ -1,5 +1,6 @@
 import { api } from "../../../lib/axios";
-import type { CreateBetFormData, Bet } from "../betting.schemas"; // <--- Agrega Bet
+import type { CreateBetFormData, Bet } from "../betting.schemas";
+
 // Mapeo simple para enviar al backend lo que espera
 interface PlaceBetRequest {
   title: string;
@@ -8,15 +9,15 @@ interface PlaceBetRequest {
   sport_key: string;
   is_parlay: boolean;
   user_notes?: string;
-  match_date: string; // Enviaremos la fecha actual por ahora
-  details: object; // Detalles vacíos por ahora
+  match_date: string;
+  details?: any; // CAMBIO: Permitimos que venga cualquier cosa o sea opcional
 }
 
 export const placeBet = async (data: CreateBetFormData) => {
   const payload: PlaceBetRequest = {
     ...data,
     match_date: new Date().toISOString(),
-    details: {}, // En el futuro aquí irán equipos, ligas, etc.
+    // details: {},  <--- ¡BORRA ESTA LÍNEA ASESINA!
   };
 
   const response = await api.post("/api/bets", payload);
@@ -24,7 +25,6 @@ export const placeBet = async (data: CreateBetFormData) => {
 };
 
 export const getBets = async () => {
-  // Pedimos las apuestas ordenadas (el backend ya lo hace)
   const response = await api.get<{ data: Bet[] }>("/api/bets?limit=20");
   return response.data.data;
 };

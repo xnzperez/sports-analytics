@@ -17,7 +17,7 @@ func (r *Repository) CreateUser(user *User) error {
 	return r.db.Create(user).Error
 }
 
-// FindByEmail busca si ya existe un email (para evitar duplicados)
+// FindByEmail busca si ya existe un email
 func (r *Repository) FindByEmail(email string) (*User, error) {
 	var user User
 	err := r.db.Where("email = ?", email).First(&user).Error

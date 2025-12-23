@@ -21,7 +21,7 @@ export const createBetSchema = (currentBankroll: number) =>
 
     // CAMBIO 2: Agregamos details para soportar la integración con la API de Partidos
     // Recibirá un JSON string con { match_id, selection, external_id... }
-    details: z.string().optional(),
+    details: z.any().optional(),
   });
 
 export type CreateBetFormData = z.infer<ReturnType<typeof createBetSchema>>;

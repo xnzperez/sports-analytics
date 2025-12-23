@@ -60,5 +60,6 @@ func Connect() {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	Instance = db
-	log.Println("✅ Conexión a PostgreSQL exitosa y Pool configurado.")
+	log.Println("⚡ [STAKEWISE-CLOUD] Conexión establecida con Azure Database for PostgreSQL")
+	log.Println("🛡️ Seguridad SSL/TLS verificada. Pool de conexiones activo.")
 }

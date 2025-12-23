@@ -3,37 +3,37 @@ package betting
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/xnzperez/sports-analytics-backend/internal/ai"
+
+	// "auth" lo quitamos porque ya no lo necesitamos aquí
 	"gorm.io/gorm"
 )
 
 type Handler struct {
-	service *Service
+	service   *Service
+	aiService *ai.Service
 }
 
 func NewHandler(db *gorm.DB) *Handler {
 	repo := NewRepository(db)
 	service := NewService(repo)
-	return &Handler{service: service}
+	aiService := ai.NewService()
+	return &Handler{
+		service:   service,
+		aiService: aiService}
 }
 
-// PlaceBet crea una nueva apuesta en el sistema.
-// @Summary      Crear una nueva apuesta
-// @Description  Permite al usuario registrar una apuesta, descontando saldo automáticamente.
-// @Tags         Apuestas
-// @Accept       json
-// @Produce      json
-// @Param        request body PlaceBetRequest true "Datos de la apuesta"
-// @Success      201  {object}  map[string]interface{} "Apuesta creada exitosamente"
-// @Failure      400  {object}  map[string]interface{} "Error de validación o saldo insuficiente"
-// @Failure      500  {object}  map[string]interface{} "Error interno del servidor"
-// @Router       /api/bets [post]
-// @Security     Bearer
+// NOTA: Borramos 'type PlaceBetRequest struct...' de aquí
+// porque ya debe estar en service.go (según el paso anterior).
+
+// PlaceBet crea una nueva apuesta
+// @Router /api/bets [post]
 func (h *Handler) PlaceBet(c *fiber.Ctx) error {
-	// 1. Obtener ID del usuario
+	// 1. Obtener ID del usuario (Forma correcta: string desde Locals)
 	userIDStr := c.Locals("user_id").(string)
 	userID, _ := uuid.Parse(userIDStr)
 
-	// 2. Parsear el Body
+	// 2. Parsear el Body (Usando el struct definido en service.go)
 	var req PlaceBetRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Datos inválidos"})
@@ -65,18 +65,7 @@ type ResolveBetRequest struct {
 }
 
 // ResolveBetHandler define el resultado de una apuesta.
-// @Summary      Resolver una apuesta (Ganada/Perdida)
-// @Description  Actualiza el estado de la apuesta. Si es WON, paga al usuario y genera la transacción.
-// @Tags         Apuestas
-// @Accept       json
-// @Produce      json
-// @Param        id       path      string             true  "ID de la apuesta (UUID)"
-// @Param        request  body      ResolveBetRequest  true  "Resultado (WON/LOST)"
-// @Success      200      {object}  map[string]interface{} "Apuesta resuelta correctamente"
-// @Failure      400      {object}  map[string]interface{} "Error de validación"
-// @Failure      500      {object}  map[string]interface{} "Error interno"
-// @Router       /api/bets/{id}/resolve [patch]
-// @Security     Bearer
+// @Router /api/bets/{id}/resolve [patch]
 func (h *Handler) ResolveBetHandler(c *fiber.Ctx) error {
 	betID := c.Params("id")
 
@@ -93,7 +82,6 @@ func (h *Handler) ResolveBetHandler(c *fiber.Ctx) error {
 		})
 	}
 
-	// CORRECCIÓN: Llamamos al service, no al repo directamente
 	err := h.service.ResolveBet(betID, req.Outcome)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -107,30 +95,16 @@ func (h *Handler) ResolveBetHandler(c *fiber.Ctx) error {
 	})
 }
 
-// GetBetsHandler obtiene el historial de apuestas con filtros.
-// @Summary      Listar apuestas del usuario
-// @Description  Obtiene las apuestas paginadas. Permite filtrar por estado o deporte.
-// @Tags         Apuestas
-// @Accept       json
-// @Produce      json
-// @Param        page       query     int     false  "Número de página (default 1)"
-// @Param        limit      query     int     false  "Items por página (default 10)"
-// @Param        status     query     string  false  "Filtrar por estado (pending, WON, LOST)"
-// @Param        sport_key  query     string  false  "Filtrar por deporte (cs2, nba)"
-// @Success      200        {object}  GetBetsResponse
-// @Failure      500        {object}  map[string]interface{} "Error interno"
-// @Router       /api/bets [get]
-// @Security     Bearer
+// GetBetsHandler obtiene el historial de apuestas
+// @Router /api/bets [get]
 func (h *Handler) GetBetsHandler(c *fiber.Ctx) error {
 	userIDStr := c.Locals("user_id").(string)
 	userID, _ := uuid.Parse(userIDStr)
 
-	// Leemos los Query Params de la URL
-	// Ej: /api/bets?page=2&limit=5&status=WON
-	page := c.QueryInt("page", 1)    // Default: 1
-	limit := c.QueryInt("limit", 10) // Default: 10
-	status := c.Query("status")      // Opcional
-	sportKey := c.Query("sport_key") // Opcional
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 10)
+	status := c.Query("status")
+	sportKey := c.Query("sport_key")
 
 	filters := BetFilters{
 		UserID:   userID,
@@ -150,48 +124,46 @@ func (h *Handler) GetBetsHandler(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(response)
 }
 
-// GetStatsHandler calcula el rendimiento financiero del usuario.
-// @Summary      Obtener estadísticas (ROI, WinRate)
-// @Description  Calcula métricas clave como ganancia neta, porcentaje de aciertos y total apostado.
-// @Tags         Analytics
-// @Accept       json
-// @Produce      json
-// @Success      200      {object}  StatsResponse
-// @Failure      500      {object}  map[string]interface{} "Error interno"
-// @Router       /api/stats [get]
-// @Security     Bearer
+// GetStatsHandler calcula el rendimiento (CORREGIDO)
+// @Router /api/stats [get]
 func (h *Handler) GetStatsHandler(c *fiber.Ctx) error {
-	userIDStr := c.Locals("user_id").(string)
-	userID, _ := uuid.Parse(userIDStr)
-
-	stats, err := h.service.GetUserStats(userID)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Error calculando estadísticas",
-		})
+	val := c.Locals("user_id")
+	if val == nil {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(stats)
+	userIDStr := val.(string)
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		return c.Status(401).JSON(fiber.Map{"error": "Invalid User ID"})
+	}
+
+	// 1. Obtenemos estadísticas numéricas
+	stats, err := h.service.GetUserDashboardStats(userID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Error calculando estadísticas"})
+	}
+
+	// 2. Determinar el "Deporte Top" (simple lógica para MVP)
+	topSport := "General"
+	if len(stats.SportPerformance) > 0 {
+		topSport = stats.SportPerformance[0].SportKey // Asumiendo que vienen ordenados o tomamos el primero
+	}
+
+	// 3. Generar el Tip usando el servicio de IA
+	// Le pasamos los datos reales calculados
+	tip := h.aiService.GenerateTip(stats.WinRate, stats.TotalBets, topSport, stats.TotalProfit)
+	stats.AiTip = tip
+
+	return c.JSON(stats)
 }
 
-// GetTransactionsHandler maneja la petición del historial
 // GetTransactionsHandler obtiene el extracto bancario.
-// @Summary      Historial de Transacciones
-// @Description  Muestra los movimientos de dinero (depósitos, apuestas, pagos) paginados.
-// @Tags         Analytics
-// @Accept       json
-// @Produce      json
-// @Param        page   query     int  false  "Número de página"
-// @Param        limit  query     int  false  "Items por página"
-// @Success      200    {object}  GetTransactionsResponse
-// @Failure      500    {object}  map[string]interface{} "Error interno"
-// @Router       /api/transactions [get]
-// @Security     Bearer
+// @Router /api/transactions [get]
 func (h *Handler) GetTransactionsHandler(c *fiber.Ctx) error {
 	userIDStr := c.Locals("user_id").(string)
 	userID, _ := uuid.Parse(userIDStr)
 
-	// Leer params de la URL (ej: ?page=1&limit=10)
 	page := c.QueryInt("page", 1)
 	limit := c.QueryInt("limit", 20)
 
@@ -203,4 +175,55 @@ func (h *Handler) GetTransactionsHandler(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(response)
+}
+
+// Estructuras de Respuesta para Docs y JSON
+
+type DashboardStatsResponse struct {
+	TotalBets        int64       `json:"total_bets"`
+	WonBets          int64       `json:"won_bets"`
+	WinRate          float64     `json:"win_rate"`
+	TotalProfit      float64     `json:"total_profit"`
+	CurrentBankroll  float64     `json:"current_bankroll"`
+	AiTip            string      `json:"ai_tip"`
+	SportPerformance []SportStat `json:"sport_performance"`
+}
+
+type SportStat struct {
+	SportKey string  `json:"sport_key"`
+	Bets     int     `json:"bets"`
+	Profit   float64 `json:"profit"`
+}
+
+type ResolveMatchRequest struct {
+	MatchID string `json:"match_id"`
+	Winner  string `json:"winner"` // "HOME" o "AWAY"
+}
+
+// SettleMatchHandler (Endpoint Admin)
+func (h *Handler) SettleMatchHandler(c *fiber.Ctx) error {
+	var req ResolveMatchRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "JSON inválido"})
+	}
+
+	matchUUID, err := uuid.Parse(req.MatchID)
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "ID de partido inválido"})
+	}
+
+	if req.Winner != "HOME" && req.Winner != "AWAY" {
+		return c.Status(400).JSON(fiber.Map{"error": "El ganador debe ser HOME o AWAY"})
+	}
+
+	err = h.service.SettleMatch(matchUUID, req.Winner)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":  "Proceso de liquidación completado",
+		"match_id": req.MatchID,
+		"winner":   req.Winner,
+	})
 }

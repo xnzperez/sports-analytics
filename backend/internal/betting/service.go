@@ -2,10 +2,11 @@ package betting
 
 import (
 	"errors"
-	"time"
+
+	"encoding/json"
+	"log"
 
 	"github.com/google/uuid"
-	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -19,14 +20,13 @@ func NewService(repo *Repository) *Service {
 
 // PlaceBetRequest es el JSON que recibiremos del Frontend
 type PlaceBetRequest struct {
-	Title      string         `json:"title"`
-	MatchDate  time.Time      `json:"match_date"`
-	SportKey   string         `json:"sport_key"` // 'nba', 'cs2'
-	StakeUnits float64        `json:"stake_units"`
-	Odds       float64        `json:"odds"`
-	IsParlay   bool           `json:"is_parlay"`
-	Details    datatypes.JSON `json:"details"`    // Tus campos (teams, market, legs...)
-	UserNotes  string         `json:"user_notes"` // Opcional
+	Title      string          `json:"title"`
+	SportKey   string          `json:"sport_key"`
+	StakeUnits float64         `json:"stake_units"`
+	Odds       float64         `json:"odds"`
+	IsParlay   bool            `json:"is_parlay"`
+	UserNotes  string          `json:"user_notes"`
+	Details    json.RawMessage `json:"details"` // <--- Campo Nuevo Importante
 }
 
 // PlaceBet maneja la creación de la apuesta y el descuento de saldo
@@ -220,4 +220,108 @@ func (s *Service) GetTransactions(userID uuid.UUID, page, limit int) (*GetTransa
 		Page:  page,
 		Limit: limit,
 	}, nil
+}
+
+// GetUserDashboardStats calcula las métricas clave para el usuario
+func (s *Service) GetUserDashboardStats(userID uuid.UUID) (*DashboardStatsResponse, error) {
+	var stats DashboardStatsResponse
+
+	// 1. Obtener Bankroll Actual
+	user, err := s.repo.GetUserByID(userID) // Asumo que tienes este método o similar
+	if err == nil {
+		stats.CurrentBankroll = user.Bankroll
+	}
+
+	// 2. Contar apuestas totales y ganadas
+	var total int64
+	var won int64
+	s.repo.db.Model(&Bet{}).Where("user_id = ?", userID).Count(&total)
+	s.repo.db.Model(&Bet{}).Where("user_id = ? AND status = ?", userID, "won").Count(&won) // Ojo: status en minúscula
+
+	stats.TotalBets = total
+	stats.WonBets = won
+	if total > 0 {
+		stats.WinRate = (float64(won) / float64(total)) * 100
+	}
+
+	// 3. Calcular Profit Total (Suma de transacciones de tipo BET_PAYOUT + BET_PLACED)
+	// Truco: Sumamos 'amount' de la tabla transactions filtrando por apuestas
+	var profit float64
+	s.repo.db.Model(&Transaction{}).
+		Where("user_id = ? AND type IN ('BET_PLACED', 'BET_PAYOUT')", userID).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&profit)
+	stats.TotalProfit = profit
+
+	// 4. Agrupación por Deporte (Para gráfica: Rendimiento por deporte)
+	// Esto es un Query Group By
+	rows, err := s.repo.db.Model(&Bet{}).
+		Select("sport_key, COUNT(*) as bets, SUM(CASE WHEN status = 'won' THEN (stake_units * odds) - stake_units WHEN status = 'lost' THEN -stake_units ELSE 0 END) as profit").
+		Where("user_id = ? AND status IN ('won', 'lost')", userID). // Solo apuestas resueltas cuentan para profit
+		Group("sport_key").
+		Rows()
+
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var ss SportStat
+			rows.Scan(&ss.SportKey, &ss.Bets, &ss.Profit)
+			stats.SportPerformance = append(stats.SportPerformance, ss)
+		}
+	}
+
+	return &stats, nil
+}
+
+// Struct auxiliar para leer el JSON que guardamos en 'details'
+type BetDetails struct {
+	MatchID   string `json:"match_id"`
+	Selection string `json:"selection"` // "HOME" o "AWAY"
+	TeamName  string `json:"team_name"`
+}
+
+// SettleMatch resuelve todas las apuestas de un partido específico
+// winner: "HOME" o "AWAY"
+func (s *Service) SettleMatch(matchID uuid.UUID, winner string) error {
+	var bets []Bet
+
+	// 1. Buscar todas las apuestas PENDIENTES que contengan ese match_id en su JSON details
+	// Usamos sintaxis de JSONB de Postgres para buscar dentro del texto
+	// Nota: Como details es string en tu struct pero JSONB en DB, usaremos LIKE por simplicidad en este MVP
+	// O mejor, traemos todas las pendientes y filtramos en código (más seguro para MVP)
+	if err := s.repo.db.Where("status = ?", "pending").Find(&bets).Error; err != nil {
+		return err
+	}
+
+	log.Printf("🔍 Revisando %d apuestas pendientes...", len(bets))
+
+	for _, bet := range bets {
+		// Deserializar los detalles para ver a qué partido apostó
+		var details BetDetails
+		if err := json.Unmarshal([]byte(bet.Details), &details); err != nil {
+			log.Printf("⚠️ Error leyendo detalles apuesta %s: %v", bet.ID, err)
+			continue
+		}
+
+		// Si esta apuesta NO es del partido que estamos resolviendo, saltarla
+		if details.MatchID != matchID.String() {
+			continue
+		}
+
+		// 2. Determinar si ganó o perdió
+		newStatus := "lost"
+		if details.Selection == winner {
+			newStatus = "won"
+		}
+
+		// 3. Resolver la apuesta (Atomicidad es clave aquí)
+		err := s.repo.ResolveBet(bet.ID.String(), newStatus)
+		if err != nil {
+			log.Printf("❌ Error resolviendo apuesta %s: %v", bet.ID, err)
+		} else {
+			log.Printf("✅ Apuesta %s marcada como %s", bet.ID, newStatus)
+		}
+	}
+
+	return nil
 }

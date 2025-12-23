@@ -7,7 +7,6 @@ import { createBetSchema } from "../betting.schemas";
 import type { CreateBetFormData } from "../betting.schemas";
 import { placeBet } from "../services/betting.service";
 import { getAvailableMatches } from "../../../services/marketService";
-// Importamos Match como "type" para evitar el error de Vite
 import type { Match } from "../../../services/marketService";
 import { useAuthStore } from "../../auth/auth.store";
 import { Button } from "../../../components/ui/Button";
@@ -21,16 +20,16 @@ interface Props {
 
 export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
   const { user, fetchUser } = useAuthStore();
-
-  // Estado para los partidos traídos de la API
   const [matches, setMatches] = useState<Match[]>([]);
   const [isLoadingMatches, setIsLoadingMatches] = useState(false);
-
-  // Estado para controlar qué partido y qué equipo seleccionó visualmente
   const [selectedMatchId, setSelectedMatchId] = useState<string>("");
   const [selectedTeam, setSelectedTeam] = useState<"HOME" | "AWAY" | null>(
     null
   );
+
+  // !!! CAMBIO NUCLEAR 1: Usamos un estado simple para los detalles.
+  // Esto no puede fallar porque React lo controla directamente.
+  const [manualDetails, setManualDetails] = useState<any>({});
 
   const {
     register,
@@ -45,13 +44,14 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
       stake_units: 0,
       odds: 0,
       sport_key: "esports",
+      // details: {}, // Ya no necesitamos esto aquí
     },
   });
 
   const stakeValue = watch("stake_units");
   const oddsValue = watch("odds");
 
-  // 1. Cargar partidos al abrir el modal
+  // Cargar partidos
   useEffect(() => {
     if (isOpen) {
       setIsLoadingMatches(true);
@@ -62,14 +62,13 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
     }
   }, [isOpen]);
 
-  // 2. Manejar cambio de partido en el Select
   const handleMatchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const matchId = e.target.value;
     setSelectedMatchId(matchId);
     setSelectedTeam(null);
     setValue("odds", 0);
+    setManualDetails({}); // Limpiamos detalles al cambiar partido
 
-    // CORRECCIÓN 1: Usamos .ID (Mayúscula)
     const match = matches.find((m) => m.ID === matchId);
     if (match) {
       setValue("title", `${match.home_team} vs ${match.away_team}`);
@@ -77,39 +76,42 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
     }
   };
 
-  // 3. Manejar selección de Ganador (Botones)
   const handleTeamSelect = (team: "HOME" | "AWAY") => {
-    // CORRECCIÓN 2: Usamos .ID (Mayúscula)
     const match = matches.find((m) => m.ID === selectedMatchId);
     if (!match) return;
 
     setSelectedTeam(team);
-
     const selectedOdds = team === "HOME" ? match.home_odds : match.away_odds;
     const teamName = team === "HOME" ? match.home_team : match.away_team;
 
     setValue("odds", selectedOdds);
 
-    // Guardamos metadata importante
-    const detailsJson = JSON.stringify({
-      match_id: match.ID, // CORRECCIÓN 3: Guardamos el ID correcto
+    // !!! CAMBIO NUCLEAR 2: Guardamos en el estado local directo
+    const detailsObj = {
+      match_id: match.ID,
       external_id: match.external_id,
       selection: team,
       team_name: teamName,
       league: match.league,
-    });
-
-    setValue("details", detailsJson as any);
+    };
+    setManualDetails(detailsObj);
   };
 
   const onSubmit = async (data: CreateBetFormData) => {
+    // !!! CAMBIO NUCLEAR 3: Fusionamos los datos del formulario con nuestro estado manual
+    const finalData = {
+      ...data,
+      details: manualDetails,
+    };
+
+    console.log("🔥 DATOS REALES A ENVIAR:", finalData); // Mira esto en consola
+
     try {
-      await placeBet(data);
-      toast.success("¡Apuesta registrada!", {
-        description: `Has apostado $${data.stake_units} a cuota ${data.odds}`,
-      });
+      await placeBet(finalData);
+      toast.success("¡Apuesta registrada!");
       await fetchUser();
       reset();
+      setManualDetails({}); // Resetear estado manual
       setSelectedMatchId("");
       setSelectedTeam(null);
       onSuccess();
@@ -122,6 +124,7 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
 
   if (!isOpen) return null;
 
+  // ... (El resto del return sigue igual)
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-xl shadow-2xl animate-in fade-in zoom-in duration-200">
@@ -158,7 +161,6 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
                   : "-- Selecciona un partido --"}
               </option>
               {matches.map((match) => (
-                // CORRECCIÓN 4: Usamos .ID en key y value
                 <option key={match.ID} value={match.ID}>
                   [{match.sport_key.toUpperCase()}] {match.home_team} vs{" "}
                   {match.away_team}
@@ -168,14 +170,13 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
             <input type="hidden" {...register("title")} />
           </div>
 
-          {/* SELECCIÓN DE GANADOR (SOLO SI HAY PARTIDO) */}
+          {/* SELECCIÓN DE GANADOR */}
           {selectedMatchId && (
             <div className="space-y-3 animate-in slide-in-from-top-2 fade-in">
               <p className="text-sm text-slate-400 text-center">
                 ¿Quién ganará el encuentro?
               </p>
               <div className="grid grid-cols-2 gap-4">
-                {/* Botón Local */}
                 <button
                   type="button"
                   onClick={() => handleTeamSelect("HOME")}
@@ -185,7 +186,6 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
                       : "bg-slate-800 border-slate-700 hover:border-slate-600 text-slate-300"
                   }`}
                 >
-                  {/* CORRECCIÓN VISUAL: Usamos .ID en el find */}
                   <span className="font-bold text-lg">
                     {matches.find((m) => m.ID === selectedMatchId)?.home_team}
                   </span>
@@ -194,7 +194,6 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
                   </span>
                 </button>
 
-                {/* Botón Visitante */}
                 <button
                   type="button"
                   onClick={() => handleTeamSelect("AWAY")}
@@ -204,7 +203,6 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
                       : "bg-slate-800 border-slate-700 hover:border-slate-600 text-slate-300"
                   }`}
                 >
-                  {/* CORRECCIÓN VISUAL: Usamos .ID en el find */}
                   <span className="font-bold text-lg">
                     {matches.find((m) => m.ID === selectedMatchId)?.away_team}
                   </span>

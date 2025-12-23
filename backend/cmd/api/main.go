@@ -89,6 +89,7 @@ func main() {
 	// Agregamos "/api" al principio para que coincida con tu navegador
 	app.Post("/api/test-sync", marketHandler.SyncMarketsHandler)
 	app.Get("/api/markets", marketHandler.ListMarketsHandler)
+	app.Post("/api/admin/resolve", bettingHandler.SettleMatchHandler)
 
 	// --- RUTAS PROTEGIDAS (API) ---
 	// Todo lo que esté debajo de api usa el middleware auth.Protected()
