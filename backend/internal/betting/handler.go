@@ -20,7 +20,8 @@ func NewHandler(db *gorm.DB) *Handler {
 	aiService := ai.NewService()
 	return &Handler{
 		service:   service,
-		aiService: aiService}
+		aiService: aiService,
+	}
 }
 
 // NOTA: Borramos 'type PlaceBetRequest struct...' de aquí
