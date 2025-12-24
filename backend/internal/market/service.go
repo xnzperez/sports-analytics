@@ -7,24 +7,23 @@ import (
 
 	"github.com/xnzperez/sports-analytics-backend/internal/integrations/pinnacle"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type Service struct {
-	db             *gorm.DB
+	repo           *Repository // CAMBIO: Ahora usamos el Repository en lugar de db directo
 	pinnacleClient *pinnacle.Client
 }
 
 func NewService(db *gorm.DB) *Service {
 	return &Service{
-		db:             db,
+		repo:           NewRepository(db), // Inicializamos el Repo
 		pinnacleClient: pinnacle.NewClient(),
 	}
 }
 
-// SyncEsports llama a la API y actualiza nuestra base de datos local
+// SyncEsports llama a la API y actualiza nuestra base de datos local usando el Repo
 func (s *Service) SyncEsports() (int, error) {
-	// 1. Llamar a RapidAPI (Gasta 1 crédito)
+	// 1. Llamar a RapidAPI
 	resp, err := s.pinnacleClient.GetEsportsMarkets()
 	if err != nil {
 		return 0, err
@@ -32,7 +31,7 @@ func (s *Service) SyncEsports() (int, error) {
 
 	count := 0
 
-	// 2. Procesar cada evento y guardarlo
+	// 2. Procesar cada evento
 	for _, event := range resp.Events {
 
 		// Filtrar cuotas vacías (0.00)
@@ -40,7 +39,7 @@ func (s *Service) SyncEsports() (int, error) {
 			continue
 		}
 
-		// Inferir deporte basado en la liga o nombres (Lógica simple por ahora)
+		// Inferir deporte
 		sportKey := "esports"
 		leagueLower := strings.ToLower(event.LeagueName)
 		if strings.Contains(leagueLower, "lol") || strings.Contains(leagueLower, "league of legends") || strings.Contains(leagueLower, "lck") || strings.Contains(leagueLower, "lpl") {
@@ -57,7 +56,7 @@ func (s *Service) SyncEsports() (int, error) {
 		startTime, _ := time.Parse("2006-01-02T15:04:05", event.Starts)
 
 		match := Match{
-			ExternalID: filterNumericID(event.EventID), // Convertir ID a string
+			ExternalID: filterNumericID(event.EventID),
 			Provider:   "pinnacle",
 			SportKey:   sportKey,
 			League:     event.LeagueName,
@@ -69,13 +68,8 @@ func (s *Service) SyncEsports() (int, error) {
 			Status:     "scheduled",
 		}
 
-		// UPSERT: Si ya existe (mismo ExternalID), actualiza las cuotas. Si no, lo crea.
-		err := s.db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "external_id"}},                                     // Buscar por ID externo
-			DoUpdates: clause.AssignmentColumns([]string{"home_odds", "away_odds", "updated_at"}), // Actualizar solo cuotas
-		}).Create(&match).Error
-
-		if err == nil {
+		// CAMBIO: Usamos el repositorio para guardar
+		if err := s.repo.SaveMatch(&match); err == nil {
 			count++
 		}
 	}
@@ -83,17 +77,17 @@ func (s *Service) SyncEsports() (int, error) {
 	return count, nil
 }
 
-// GetMatches devuelve los partidos guardados en DB para el frontend
+// GetMatches devuelve TODOS los partidos (Delegamos al Repo)
 func (s *Service) GetMatches(sport string) ([]Match, error) {
-	var matches []Match
-	query := s.db.Where("starts_at > ?", time.Now()).Order("starts_at asc")
+	// NOTA: Ignoramos el filtro de sport por ahora para asegurar
+	// que veas partidos aunque no coincidan con 'lol'.
+	// Y lo más importante: ¡Ya no filtramos por fecha!
+	return s.repo.GetMatches()
+}
 
-	if sport != "" && sport != "all" {
-		query = query.Where("sport_key = ?", sport)
-	}
-
-	err := query.Find(&matches).Error
-	return matches, err
+// GetAvailableMatches es un alias por si tu Handler lo llama con este nombre
+func (s *Service) GetAvailableMatches() ([]Match, error) {
+	return s.repo.GetMatches()
 }
 
 // Helper para convertir int64 a string

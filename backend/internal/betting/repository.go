@@ -193,3 +193,11 @@ func (r *Repository) GetUserByID(userID uuid.UUID) (*auth.User, error) {
 	}
 	return &user, nil
 }
+
+// GetPendingBets obtiene todas las apuestas que aún no han finalizado
+func (r *Repository) GetPendingBets() ([]Bet, error) {
+	var bets []Bet
+	// Buscamos status = 'pending'
+	result := r.db.Where("status = ?", "pending").Find(&bets)
+	return bets, result.Error
+}

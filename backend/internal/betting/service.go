@@ -222,55 +222,92 @@ func (s *Service) GetTransactions(userID uuid.UUID, page, limit int) (*GetTransa
 	}, nil
 }
 
-// GetUserDashboardStats calcula las métricas clave para el usuario
-func (s *Service) GetUserDashboardStats(userID uuid.UUID) (*DashboardStatsResponse, error) {
-	var stats DashboardStatsResponse
+// GetUserDashboardStats calcula las estadísticas, aplicando filtro opcional de deporte
+func (s *Service) GetUserDashboardStats(userID uuid.UUID, sportFilter string) (*DashboardStatsResponse, error) {
+	var bets []Bet
 
-	// 1. Obtener Bankroll Actual
-	user, err := s.repo.GetUserByID(userID) // Asumo que tienes este método o similar
-	if err == nil {
-		stats.CurrentBankroll = user.Bankroll
+	// 1. Construir la Query Base
+	query := s.repo.db.Where("user_id = ?", userID)
+
+	// 2. Aplicar el Filtro si existe y no es "all"
+	// (El frontend envía "all" cuando quiere ver todo, o vacío)
+	if sportFilter != "" && sportFilter != "all" {
+		query = query.Where("sport_key = ?", sportFilter)
 	}
 
-	// 2. Contar apuestas totales y ganadas
-	var total int64
-	var won int64
-	s.repo.db.Model(&Bet{}).Where("user_id = ?", userID).Count(&total)
-	s.repo.db.Model(&Bet{}).Where("user_id = ? AND status = ?", userID, "won").Count(&won) // Ojo: status en minúscula
-
-	stats.TotalBets = total
-	stats.WonBets = won
-	if total > 0 {
-		stats.WinRate = (float64(won) / float64(total)) * 100
+	// 3. Ejecutar la consulta
+	result := query.Order("created_at desc").Find(&bets)
+	if result.Error != nil {
+		return nil, result.Error
 	}
 
-	// 3. Calcular Profit Total (Suma de transacciones de tipo BET_PAYOUT + BET_PLACED)
-	// Truco: Sumamos 'amount' de la tabla transactions filtrando por apuestas
-	var profit float64
-	s.repo.db.Model(&Transaction{}).
-		Where("user_id = ? AND type IN ('BET_PLACED', 'BET_PAYOUT')", userID).
-		Select("COALESCE(SUM(amount), 0)").
-		Scan(&profit)
-	stats.TotalProfit = profit
+	// 4. Calcular Métricas en Memoria
+	var totalBets int64 = int64(len(bets))
+	var wonBets int64 = 0
+	var totalProfit float64 = 0.0
 
-	// 4. Agrupación por Deporte (Para gráfica: Rendimiento por deporte)
-	// Esto es un Query Group By
-	rows, err := s.repo.db.Model(&Bet{}).
-		Select("sport_key, COUNT(*) as bets, SUM(CASE WHEN status = 'won' THEN (stake_units * odds) - stake_units WHEN status = 'lost' THEN -stake_units ELSE 0 END) as profit").
-		Where("user_id = ? AND status IN ('won', 'lost')", userID). // Solo apuestas resueltas cuentan para profit
-		Group("sport_key").
-		Rows()
+	// Mapa para agrupar rendimiento por deporte
+	sportMap := make(map[string]*SportStat)
 
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var ss SportStat
-			rows.Scan(&ss.SportKey, &ss.Bets, &ss.Profit)
-			stats.SportPerformance = append(stats.SportPerformance, ss)
+	for _, bet := range bets {
+		// Inicializar mapa del deporte si no existe
+		if _, exists := sportMap[bet.SportKey]; !exists {
+			sportMap[bet.SportKey] = &SportStat{SportKey: bet.SportKey}
+		}
+
+		currentSportStat := sportMap[bet.SportKey]
+		currentSportStat.Bets++
+
+		// Calcular Ganancias/Pérdidas
+		// Asumimos que si está "won", ganamos (stake * odds) - stake
+		// Si está "lost", perdemos el stake.
+		// Si está "pending", no afecta el profit todavía.
+		if bet.Status == "WON" {
+			wonBets++
+			profit := (bet.StakeUnits * bet.Odds) - bet.StakeUnits
+			totalProfit += profit
+			currentSportStat.Profit += profit
+		} else if bet.Status == "LOST" {
+			totalProfit -= bet.StakeUnits
+			currentSportStat.Profit -= bet.StakeUnits
 		}
 	}
 
-	return &stats, nil
+	// 5. Calcular WinRate
+	var winRate float64 = 0
+	// Solo contamos apuestas resueltas para el WinRate real (evitamos dividir por pendientes)
+	resolvedBets := 0
+	for _, b := range bets {
+		if b.Status == "WON" || b.Status == "LOST" {
+			resolvedBets++
+		}
+	}
+
+	if resolvedBets > 0 {
+		winRate = (float64(wonBets) / float64(resolvedBets)) * 100
+	}
+
+	// 6. Obtener Bankroll actual del usuario (siempre el total real)
+	user, _ := s.repo.GetUserByID(userID)
+	currentBankroll := 0.0
+	if user != nil {
+		currentBankroll = user.Bankroll
+	}
+
+	// Convertir el mapa de deportes a slice para la respuesta
+	var sportPerformance []SportStat
+	for _, stat := range sportMap {
+		sportPerformance = append(sportPerformance, *stat)
+	}
+
+	return &DashboardStatsResponse{
+		TotalBets:        totalBets,
+		WonBets:          wonBets,
+		WinRate:          winRate,
+		TotalProfit:      totalProfit,
+		CurrentBankroll:  currentBankroll,
+		SportPerformance: sportPerformance,
+	}, nil
 }
 
 // Struct auxiliar para leer el JSON que guardamos en 'details'
@@ -324,4 +361,9 @@ func (s *Service) SettleMatch(matchID uuid.UUID, winner string) error {
 	}
 
 	return nil
+}
+
+// GetPendingBets expone las apuestas pendientes para el worker
+func (s *Service) GetPendingBets() ([]Bet, error) {
+	return s.repo.GetPendingBets()
 }

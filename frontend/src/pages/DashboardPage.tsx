@@ -92,19 +92,21 @@ export const DashboardPage = () => {
             <span className="text-sm font-medium">Filtrar rendimiento:</span>
           </div>
           <div className="flex gap-2">
-            {["", "lol", "valorant", "cs2"].map((s) => (
-              <button
-                key={s}
-                onClick={() => setSportFilter(s)}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
-                  sportFilter === s
-                    ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                }`}
-              >
-                {s === "" ? "TODOS" : s.toUpperCase()}
-              </button>
-            ))}
+            {["", "lol", "valorant", "cs2", "football", "basketball"].map(
+              (s) => (
+                <button
+                  key={s}
+                  onClick={() => setSportFilter(s)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                    sportFilter === s
+                      ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                      : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                  }`}
+                >
+                  {s === "" ? "TODOS" : s.toUpperCase()}
+                </button>
+              )
+            )}
           </div>
         </div>
 

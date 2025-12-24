@@ -139,20 +139,26 @@ func (h *Handler) GetStatsHandler(c *fiber.Ctx) error {
 		return c.Status(401).JSON(fiber.Map{"error": "Invalid User ID"})
 	}
 
-	// 1. Obtenemos estadísticas numéricas
-	stats, err := h.service.GetUserDashboardStats(userID)
+	// CAPTURAMOS EL FILTRO: Ejemplo /api/stats?sport=lol
+	sportFilter := c.Query("sport")
+
+	// 1. Obtenemos estadísticas filtradas (Asegúrate que tu service reciba este string)
+	// Si tu service aún no lo recibe, puedes pasarle solo el userID por ahora
+	// pero aquí ya preparamos el Handler para el futuro.
+	stats, err := h.service.GetUserDashboardStats(userID, sportFilter)
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Error calculando estadísticas"})
 	}
 
-	// 2. Determinar el "Deporte Top" (simple lógica para MVP)
+	// 2. Determinar el "Deporte Top"
 	topSport := "General"
-	if len(stats.SportPerformance) > 0 {
-		topSport = stats.SportPerformance[0].SportKey // Asumiendo que vienen ordenados o tomamos el primero
+	if sportFilter != "" {
+		topSport = sportFilter
+	} else if len(stats.SportPerformance) > 0 {
+		topSport = stats.SportPerformance[0].SportKey
 	}
 
-	// 3. Generar el Tip usando el servicio de IA
-	// Le pasamos los datos reales calculados
+	// 3. Generar el Tip de IA
 	tip := h.aiService.GenerateTip(stats.WinRate, stats.TotalBets, topSport, stats.TotalProfit)
 	stats.AiTip = tip
 
@@ -227,4 +233,9 @@ func (h *Handler) SettleMatchHandler(c *fiber.Ctx) error {
 		"match_id": req.MatchID,
 		"winner":   req.Winner,
 	})
+}
+
+// GetService permite acceder al servicio interno (usado por el worker)
+func (h *Handler) GetService() *Service {
+	return h.service
 }

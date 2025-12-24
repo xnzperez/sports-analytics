@@ -1,105 +1,124 @@
 import { useEffect, useState } from "react";
-import { getBets } from "../services/betting.service";
-import type { Bet } from "../betting.schemas";
-import { StatusBadge } from "../../../components/ui/StatusBadge";
-import { Calendar, DollarSign, Trophy } from "lucide-react";
+import api from "../../../lib/axios";
+import { formatCurrency } from "../../../lib/utils";
+import { BetDetailsModal } from "./BetDetailsModal"; // <--- IMPORTAR
 
-interface Props {
-  refreshTrigger: number; // Un truco para recargar la lista cuando creamos una apuesta nueva
-}
+// ... (Interface Bet que ya tenías, asegúrate que coincida)
 
-export const BetHistory = ({ refreshTrigger }: Props) => {
-  const [bets, setBets] = useState<Bet[]>([]);
+export const BetHistory = ({ refreshTrigger }: { refreshTrigger: number }) => {
+  const [bets, setBets] = useState<any[]>([]); // Usa 'any' o tu interfaz Bet
   const [loading, setLoading] = useState(true);
 
+  // --- NUEVO ESTADO PARA EL MODAL ---
+  const [selectedBet, setSelectedBet] = useState<any | null>(null);
+
   useEffect(() => {
-    const loadData = async () => {
+    const fetchBets = async () => {
       try {
-        setLoading(true);
-        const data = await getBets();
+        const { data } = await api.get("/api/bets");
         setBets(data);
       } catch (error) {
-        console.error("Error cargando historial", error);
+        console.error("Error fetching bets", error);
       } finally {
         setLoading(false);
       }
     };
-    loadData();
-  }, [refreshTrigger]); // Cada vez que cambie este número, recargamos
+    fetchBets();
+  }, [refreshTrigger]);
 
   if (loading)
-    return (
-      <div className="text-slate-400 text-sm p-4">Cargando historial...</div>
-    );
-
-  if (bets.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 border border-dashed border-slate-800 rounded-xl bg-slate-900/50">
-        <p className="text-slate-400 text-sm">
-          Aún no tienes apuestas registradas.
-        </p>
-      </div>
-    );
-  }
+    return <div className="p-4 text-slate-400">Cargando historial...</div>;
 
   return (
-    <div className="space-y-4">
-      <h3 className="text-xl font-bold text-white mb-4">Actividad Reciente</h3>
-      <div className="grid grid-cols-1 gap-4">
-        {bets.map((bet) => (
-          <div
-            key={bet.id}
-            className="group relative bg-slate-800/50 border border-slate-700/50 hover:border-emerald-500/30 hover:bg-slate-800 transition-all rounded-xl p-4 overflow-hidden"
-          >
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <span className="text-xs font-mono text-slate-500 uppercase tracking-wider block mb-1">
-                  {bet.sport_key}
-                </span>
-                <h4 className="font-semibold text-slate-200">{bet.title}</h4>
-              </div>
-              <StatusBadge status={bet.status} />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 text-sm border-t border-slate-700/50 pt-3 mt-1">
-              {/* Cuota */}
-              <div className="flex flex-col">
-                <span className="text-slate-500 text-xs mb-1">Cuota</span>
-                <div className="flex items-center gap-1 text-slate-300 font-medium">
-                  <span className="bg-slate-700 px-1.5 rounded text-xs">x</span>
-                  {bet.odds.toFixed(2)}
-                </div>
-              </div>
-
-              {/* Apostado */}
-              <div className="flex flex-col">
-                <span className="text-slate-500 text-xs mb-1">Apostado</span>
-                <div className="flex items-center gap-1 text-slate-300 font-medium">
-                  <DollarSign size={12} className="text-slate-500" />
-                  {bet.stake_units.toFixed(2)}
-                </div>
-              </div>
-
-              {/* Retorno Potencial */}
-              <div className="flex flex-col">
-                <span className="text-slate-500 text-xs mb-1">
-                  Ganancia Posible
-                </span>
-                <div className="flex items-center gap-1 text-emerald-400 font-bold">
-                  <Trophy size={12} />
-                  {(bet.stake_units * bet.odds).toFixed(2)}
-                </div>
-              </div>
-            </div>
-
-            {/* Fecha absoluta pequeña abajo a la derecha */}
-            <div className="absolute bottom-2 right-4 flex items-center gap-1 text-[10px] text-slate-600">
-              <Calendar size={10} />
-              {new Date(bet.created_at).toLocaleDateString()}
-            </div>
-          </div>
-        ))}
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left">
+          <thead className="text-xs text-slate-400 uppercase bg-slate-900/50 border-b border-slate-800">
+            <tr>
+              <th className="px-6 py-3">Evento</th>
+              <th className="px-6 py-3">Selección</th>
+              <th className="px-6 py-3">Stake</th>
+              <th className="px-6 py-3">Cuota</th>
+              <th className="px-6 py-3">Estado</th>
+              <th className="px-6 py-3">Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bets.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-6 py-8 text-center text-slate-500"
+                >
+                  No hay apuestas registradas aún.
+                </td>
+              </tr>
+            ) : (
+              bets.map((bet) => (
+                <tr
+                  key={bet.ID}
+                  // --- CLICK PARA ABRIR MODAL ---
+                  onClick={() => setSelectedBet(bet)}
+                  className="bg-transparent border-b border-slate-800 hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                >
+                  <td className="px-6 py-4 font-medium text-white">
+                    {bet.title}
+                    <span className="block text-xs text-slate-500 font-normal mt-0.5">
+                      {bet.sport_key.toUpperCase()}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {/* Intentamos mostrar el equipo seleccionado de los details */}
+                    {(() => {
+                      try {
+                        const d = JSON.parse(bet.details);
+                        return (
+                          <span className="text-indigo-300">{d.team_name}</span>
+                        );
+                      } catch {
+                        return "-";
+                      }
+                    })()}
+                  </td>
+                  <td className="px-6 py-4">
+                    {formatCurrency(bet.stake_units)}
+                  </td>
+                  <td className="px-6 py-4 text-yellow-500 font-bold">
+                    {bet.odds}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span
+                      className={`px-2 py-1 rounded text-xs font-bold ${
+                        bet.status === "WON"
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : bet.status === "LOST"
+                          ? "bg-red-500/10 text-red-400"
+                          : "bg-yellow-500/10 text-yellow-400"
+                      }`}
+                    >
+                      {bet.status === "WON"
+                        ? "GANADA"
+                        : bet.status === "LOST"
+                        ? "PERDIDA"
+                        : "PENDIENTE"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-slate-400">
+                    {new Date(bet.created_at).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
-    </div>
+
+      {/* --- RENDERIZAR EL MODAL --- */}
+      <BetDetailsModal
+        isOpen={!!selectedBet}
+        bet={selectedBet}
+        onClose={() => setSelectedBet(null)}
+      />
+    </>
   );
 };

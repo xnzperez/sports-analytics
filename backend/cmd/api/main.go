@@ -9,16 +9,19 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
-	// Módulos internos (Mantenemos tu estructura)
+	// Módulos internos
 	"github.com/xnzperez/sports-analytics-backend/internal/auth"
 	"github.com/xnzperez/sports-analytics-backend/internal/betting"
 	"github.com/xnzperez/sports-analytics-backend/internal/market"
 	"github.com/xnzperez/sports-analytics-backend/internal/platform/database"
 
+	// 👇 NUEVO IMPORT: El Worker Automático
+	"github.com/xnzperez/sports-analytics-backend/internal/worker"
+
 	// --- SWAGGER IMPORTS ---
 	"github.com/joho/godotenv"
 	fiberSwagger "github.com/swaggo/fiber-swagger"
-	_ "github.com/xnzperez/sports-analytics-backend/docs" // Carga la documentación generada
+	_ "github.com/xnzperez/sports-analytics-backend/docs"
 )
 
 // @title           Sports Analytics API
@@ -38,12 +41,11 @@ func main() {
 		log.Println("⚠️  No se encontró archivo .env, usando variables del sistema")
 	}
 
-	// 2. Conectar a Base de Datos (Tu método original)
+	// 2. Conectar a Base de Datos
 	database.Connect()
-	//database.Migrate()
 
 	// Migrar la Nueva Tabla
-	database.Instance.AutoMigrate(&auth.User{}, &betting.Bet{}, &betting.Transaction{}, &market.Match{}) // <--- Agregar Match
+	database.Instance.AutoMigrate(&auth.User{}, &betting.Bet{}, &betting.Transaction{}, &market.Match{})
 
 	// 3. Inicializar Fiber
 	app := fiber.New(fiber.Config{
@@ -56,15 +58,19 @@ func main() {
 
 	// CORS Configurado explícitamente para tu Frontend
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:5173", // Permitir React/Vite
+		AllowOrigins: "http://localhost:5173",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
 
 	// 5. INICIALIZACIÓN DE HANDLERS
-	// Pasamos la instancia de DB que ya tienes en platform/database
 	authHandler := auth.NewHandler(database.Instance)
 	bettingHandler := betting.NewHandler(database.Instance)
 	marketHandler := market.NewHandler(database.Instance)
+
+	// 👇 AQUÍ ARRANCAMOS EL MOTOR AUTOMÁTICO 👇
+	// Le pasamos el servicio (usando el método GetService que creamos en el paso anterior)
+	// Esto inicia el proceso en segundo plano sin detener el servidor.
+	worker.StartScheduler(bettingHandler.GetService())
 
 	// 6. RUTA DE DOCUMENTACIÓN (SWAGGER)
 	app.Get("/swagger/*", fiberSwagger.WrapHandler)
@@ -86,24 +92,22 @@ func main() {
 	authGroup.Post("/login", authHandler.Login)
 
 	// --- RUTAS DE MARKET PÚBLICAS (TEMPORALES) ---
-	// Agregamos "/api" al principio para que coincida con tu navegador
 	app.Post("/api/test-sync", marketHandler.SyncMarketsHandler)
 	app.Get("/api/markets", marketHandler.ListMarketsHandler)
 	app.Post("/api/admin/resolve", bettingHandler.SettleMatchHandler)
 
 	// --- RUTAS PROTEGIDAS (API) ---
-	// Todo lo que esté debajo de api usa el middleware auth.Protected()
 	api := app.Group("/api", auth.Protected())
 
 	// User Routes
 	api.Get("/me", authHandler.GetMe)
 
 	// Betting Routes (Apuestas)
-	api.Post("/bets", bettingHandler.PlaceBet)                       // Crear apuesta
-	api.Get("/bets", bettingHandler.GetBetsHandler)                  // Historial (con filtros)
-	api.Patch("/bets/:id/resolve", bettingHandler.ResolveBetHandler) // Resolver (Ganó/Perdió)
+	api.Post("/bets", bettingHandler.PlaceBet)
+	api.Get("/bets", bettingHandler.GetBetsHandler)
+	api.Patch("/bets/:id/resolve", bettingHandler.ResolveBetHandler)
 
-	// Analytics & Ledger (Transacciones y Estadísticas)
+	// Analytics & Ledger
 	api.Get("/stats", bettingHandler.GetStatsHandler)
 	api.Get("/transactions", bettingHandler.GetTransactionsHandler)
 
