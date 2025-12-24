@@ -6,7 +6,7 @@ import {
   Activity,
   Target,
   Filter,
-} from "lucide-react"; // Agregamos Filter
+} from "lucide-react";
 import { useAuthStore } from "../features/auth/auth.store";
 import { Button } from "../components/ui/Button";
 import { PlaceBetModal } from "../features/betting/components/PlaceBetModal";
@@ -30,13 +30,10 @@ export const DashboardPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [stats, setStats] = useState<DashboardStats | null>(null);
-
-  // --- NUEVO ESTADO PARA FILTROS ---
   const [sportFilter, setSportFilter] = useState<string>("");
 
   const loadStats = async () => {
     try {
-      // Enviamos el filtro como Query Parameter
       const query = sportFilter ? `?sport=${sportFilter}` : "";
       const { data } = await api.get(`/api/stats${query}`);
       setStats(data);
@@ -48,7 +45,6 @@ export const DashboardPage = () => {
   useEffect(() => {
     fetchUser();
     loadStats();
-    // Se recarga cuando cambia el trigger O el filtro de deporte
   }, [refreshTrigger, sportFilter]);
 
   const handleBetSuccess = () => {
@@ -71,14 +67,14 @@ export const DashboardPage = () => {
           <div className="flex gap-3 w-full md:w-auto">
             <Button
               onClick={() => setIsModalOpen(true)}
-              className="gap-2 bg-emerald-600"
+              className="gap-2 bg-emerald-600 hover:bg-emerald-500"
             >
               <Plus size={18} /> Nueva Apuesta
             </Button>
             <Button
               variant="outline"
               onClick={logout}
-              className="border-slate-700"
+              className="border-slate-700 hover:bg-slate-800"
             >
               Salir
             </Button>
@@ -91,7 +87,7 @@ export const DashboardPage = () => {
             <Filter size={18} className="text-emerald-500" />
             <span className="text-sm font-medium">Filtrar rendimiento:</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {["", "lol", "valorant", "cs2", "football", "basketball"].map(
               (s) => (
                 <button
@@ -169,7 +165,11 @@ export const DashboardPage = () => {
                 "
               </p>
             </div>
-            <ProfitBySportChart data={stats?.sport_performance || []} />
+
+            {/* CORRECCIÓN: Eliminé el div decorativo extra, dejando solo el contenedor de tamaño */}
+            <div className="h-64 w-full">
+              <ProfitBySportChart data={stats?.sport_performance || []} />
+            </div>
           </div>
 
           <div className="lg:col-span-2 space-y-4">
