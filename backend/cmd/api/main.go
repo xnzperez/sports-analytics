@@ -58,8 +58,11 @@ func main() {
 
 	// CORS Configurado explícitamente para tu Frontend
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "http://localhost:5173",
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+		// AQUI ESTA LA CLAVE: Ponemos tu frontend local explícitamente
+		AllowOrigins:     "http://localhost:5173, https://stakewise.vercel.app",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
+		AllowCredentials: true, // Esto es vital para que pasen las cookies/tokens
 	}))
 
 	// 5. INICIALIZACIÓN DE HANDLERS

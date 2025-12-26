@@ -1,12 +1,14 @@
 import axios from "axios";
 
-// Creamos una instancia dedicada para no ensuciar la global
+// URL de Azure
 export const api = axios.create({
-  baseURL: "http://localhost:3000",
+  baseURL:
+    "https://env-stakewise.victoriousflower-9df2d478.northcentralus.azurecontainerapps.io",
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // <--- IMPORTANTE: Asegúrate de que esto siga aquí o agrégalo si falta
 });
 
 // Antes de que salga la petición, le pegamos el token

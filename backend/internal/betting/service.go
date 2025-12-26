@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/google/uuid"
+	"github.com/xnzperez/sports-analytics-backend/internal/analytics"
 	"gorm.io/gorm"
 )
 
@@ -300,12 +301,24 @@ func (s *Service) GetUserDashboardStats(userID uuid.UUID, sportFilter string) (*
 		sportPerformance = append(sportPerformance, *stat)
 	}
 
+	// 7. Generar Tip Inteligente (Lógica Local)
+	input := analytics.StatsInput{
+		WinRate:     winRate,
+		TotalBets:   int(totalBets),
+		TotalProfit: totalProfit,
+		Bankroll:    currentBankroll,
+	}
+
+	advice := analytics.GenerateSmartTip(input)
+	aiTip := advice.Message
+
 	return &DashboardStatsResponse{
 		TotalBets:        totalBets,
 		WonBets:          wonBets,
 		WinRate:          winRate,
 		TotalProfit:      totalProfit,
 		CurrentBankroll:  currentBankroll,
+		AiTip:            aiTip,
 		SportPerformance: sportPerformance,
 	}, nil
 }
