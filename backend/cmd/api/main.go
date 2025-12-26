@@ -59,7 +59,7 @@ func main() {
 	// CORS Configurado explícitamente para tu Frontend
 	app.Use(cors.New(cors.Config{
 		// AQUI ESTA LA CLAVE: Ponemos tu frontend local explícitamente
-		AllowOrigins:     "http://localhost:5173, https://stakewise.vercel.app",
+		AllowOrigins:     "http://localhost:5173, https://sports-analytics-eight.vercel.app/",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 		AllowCredentials: true, // Esto es vital para que pasen las cookies/tokens
