@@ -65,3 +65,24 @@ cp .env.example .env
 go mod tidy
 # Ejecutar servidor
 go run cmd/api/main.go
+```
+
+### 2. Frontend Setup
+```bash
+cd frontend
+# Crear archivo .env
+echo "VITE_API_URL=http://localhost:3000" > .env
+# Instalar dependencias
+pnpm install
+# Iniciar interfaz
+pnpm dev
+```
+
+## ☁️ Infraestructura Azure
+El proyecto está diseñado para desplegarse utilizando Docker containers.
+
+**Backend:** Empaquetado en Docker y desplegado en Azure Container Apps.
+
+**Base de Datos:** Azure Database for PostgreSQL (Flexible Server).
+
+Desarrollado por **Carlos Pérez** para la Microsoft Imagine Cup 2025.
