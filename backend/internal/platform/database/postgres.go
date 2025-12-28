@@ -16,7 +16,7 @@ var Instance *gorm.DB
 
 // Connect inicializa la conexión a PostgreSQL
 func Connect() {
-	// 1. Construimos el DSN (Data Source Name) usando las variables de entorno
+	// 1. Construimos el DSN
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
 		os.Getenv("DB_HOST"),
@@ -27,39 +27,27 @@ func Connect() {
 		os.Getenv("DB_SSLMODE"),
 	)
 
-	// 2. Configuración Avanzada (Senior Tip)
-	// Usamos un logger silencioso en prod para no saturar los logs, pero info en dev.
-	logLevel := logger.Silent
-	if os.Getenv("ENV") == "development" {
-		logLevel = logger.Info
-	}
-
-	// 3. Abrimos la conexión
+	// 2. Abrimos la conexión con el Logger forzado en INFO
+	// Esto nos permitirá ver la consulta SQL exacta en la terminal
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logLevel),
+		Logger: logger.Default.LogMode(logger.Info),
 	})
 
 	if err != nil {
 		log.Fatal("❌ No se pudo conectar a la base de datos: ", err)
 	}
 
-	// 4. Configuración del Connection Pool (Optimizaciones de rendimiento)
-	// Esto es vital para APIs de alto tráfico.
+	// 3. Configuración del Connection Pool
 	sqlDB, err := db.DB()
 	if err != nil {
 		log.Fatal("❌ Error obteniendo la instancia genérica de DB")
 	}
 
-	// SetMaxIdleConns: Cuantas conexiones mantener "dormidas" listas para usar.
 	sqlDB.SetMaxIdleConns(10)
-
-	// SetMaxOpenConns: Máximo de conexiones simultáneas (Evita tumbar la base de datos).
 	sqlDB.SetMaxOpenConns(100)
-
-	// SetConnMaxLifetime: Cuánto tiempo puede vivir una conexión antes de ser reciclada.
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	Instance = db
-	log.Println("⚡ [STAKEWISE-CLOUD] Conexión establecida con Azure Database for PostgreSQL")
-	log.Println("🛡️ Seguridad SSL/TLS verificada. Pool de conexiones activo.")
+	log.Println("⚡ [STAKEWISE-CLOUD] Conexión establecida")
+	log.Println("🔍 Logs SQL activados para depuración")
 }

@@ -1,25 +1,29 @@
 import axios from "axios";
 
-// URL de Azure
+// Cargamos la URL del .env, si no existe usa el fallback de localhost
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 export const api = axios.create({
-  baseURL:
-    "https://env-stakewise.victoriousflower-9df2d478.northcentralus.azurecontainerapps.io",
+  baseURL: BASE_URL,
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",
   },
-  withCredentials: true, // <--- IMPORTANTE: Asegúrate de que esto siga aquí o agrégalo si falta
+  withCredentials: true,
 });
 
-// Antes de que salga la petición, le pegamos el token
+// Interceptor para el Token (Mantenemos tu lógica de Zustand)
 api.interceptors.request.use(
   (config) => {
-    // Leemos el token directo del localStorage (donde Zustand lo guardó)
     const storage = localStorage.getItem("auth-storage");
     if (storage) {
-      const { state } = JSON.parse(storage);
-      if (state.token) {
-        config.headers.Authorization = `Bearer ${state.token}`;
+      try {
+        const { state } = JSON.parse(storage);
+        if (state?.token) {
+          config.headers.Authorization = `Bearer ${state.token}`;
+        }
+      } catch (e) {
+        console.error("Error parsing auth-storage", e);
       }
     }
     return config;
@@ -27,15 +31,15 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor de Respuesta (Manejo global de errores)
-// Esto nos permite capturar errores 401 (token vencido) o 500 en un solo lugar.
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Si el token venció (401), podríamos redirigir al login aquí
     if (error.response?.status === 401) {
-      localStorage.removeItem("auth-storage");
-      window.location.href = "/login";
+      // Solo redirigir si no estamos ya en la página de login
+      if (!window.location.pathname.includes("/login")) {
+        localStorage.removeItem("auth-storage");
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

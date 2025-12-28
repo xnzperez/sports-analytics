@@ -32,3 +32,7 @@ type Match struct {
 	// Estado
 	Status string `gorm:"default:'scheduled'" json:"status"` // scheduled, live, finished
 }
+
+func (Match) TableName() string {
+	return "matches" // <-- ASEGÚRATE de que este sea el nombre exacto en tu pgAdmin
+}

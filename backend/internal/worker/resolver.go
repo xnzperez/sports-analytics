@@ -10,17 +10,17 @@ import (
 
 // Estructura auxiliar para leer el JSON de details
 type BetDetails struct {
-	MatchID  string `json:"match_id"`
-	TeamName string `json:"team_name"`
+	MatchID   string `json:"match_id"`
+	Selection string `json:"selection"` // "HOME" o "AWAY"
+	TeamName  string `json:"team_name"`
 }
 
 func StartScheduler(service *betting.Service) {
-	// Ejecutar cada 30 segundos para ver resultados rápido en pruebas
-	ticker := time.NewTicker(30 * time.Second)
+	// Ejecutar cada 10 segundos
+	ticker := time.NewTicker(10 * time.Second)
 
 	go func() {
-		fmt.Println("🤖 Auto-Resolver: Iniciado y vigilando...")
-
+		fmt.Println("🤖 [WORKER] Auto-Resolver: Iniciado. Buscando apuestas para liquidar...")
 		for range ticker.C {
 			processPendingBets(service)
 		}
@@ -28,10 +28,9 @@ func StartScheduler(service *betting.Service) {
 }
 
 func processPendingBets(service *betting.Service) {
-	// 1. Obtener pendientes
 	bets, err := service.GetPendingBets()
 	if err != nil {
-		fmt.Println("❌ Error buscando apuestas pendientes:", err)
+		fmt.Println("❌ [WORKER] Error buscando apuestas:", err)
 		return
 	}
 
@@ -39,46 +38,47 @@ func processPendingBets(service *betting.Service) {
 		return
 	}
 
-	fmt.Printf("🔍 Auto-Resolver: Analizando %d apuestas pendientes...\n", len(bets))
+	fmt.Printf("🔍 [WORKER] Analizando %d apuestas pendientes...\n", len(bets))
 
 	for _, bet := range bets {
-		// 2. Extraer ID del partido de los detalles
 		var details BetDetails
 		if err := json.Unmarshal([]byte(bet.Details), &details); err != nil {
-			fmt.Printf("⚠️ Error leyendo detalles de apuesta %s: %v\n", bet.ID, err)
 			continue
 		}
 
-		if details.MatchID == "" {
-			continue
+		// 1. Simulamos quién ganó el partido (HOME o AWAY)
+		matchWinner := simulateWinner(bet.ID.String())
+
+		fmt.Printf("🎲 [SIMULACIÓN] Partido %s finalizado. Ganador del Match: %s\n", details.MatchID, matchWinner)
+
+		// 2. LÓGICA DE CORRECCIÓN: Comparamos selección vs ganador
+		// Aquí traducimos "HOME/AWAY" a "WON/LOST"
+		betOutcome := "LOST" // Por defecto perdió
+
+		if details.Selection == matchWinner {
+			betOutcome = "WON" // Si coinciden, ganó
 		}
 
-		// 3. CONSULTAR RESULTADO (Simulación)
-		winner := checkExternalResult(details.MatchID, details.TeamName)
+		// 3. Enviamos el estado CORRECTO a la base de datos
+		err := service.ResolveBet(bet.ID.String(), betOutcome)
 
-		// 4. Si hay resultado, resolvemos la apuesta
-		if winner != "" {
-			fmt.Printf("✅ PARTIDO FINALIZADO DETECTADO (%s). Ganador: %s\n", details.MatchID, winner)
-
-			err := service.ResolveBet(bet.ID.String(), winner)
-			if err != nil {
-				fmt.Printf("❌ Error resolviendo apuesta %s: %v\n", bet.ID, err)
-			} else {
-				fmt.Printf("💰 Apuesta %s actualizada a %s automáticamente.\n", bet.ID, winner)
-			}
+		if err != nil {
+			fmt.Printf("❌ [WORKER] Error resolviendo apuesta %s: %v\n", bet.ID, err)
+		} else {
+			fmt.Printf("💰 [WORKER] Apuesta %s liquidada. Usuario apostó %s -> Resultado: %s\n",
+				bet.ID, details.Selection, betOutcome)
 		}
 	}
 }
 
-// checkExternalResult simula la API de resultados
-func checkExternalResult(matchID string, teamName string) string {
-	// ESTE ES EL ID QUE SACAMOS DE TU JSON:
-	targetMatchID := "474d6868-a238-4f1c-99b3-305748f1d597"
-
-	if matchID == targetMatchID {
-		// Simulamos que la API externa dice que tu selección GANÓ
-		return "WON"
+// simulateWinner decide aleatoriamente quién ganó (HOME o AWAY)
+func simulateWinner(seed string) string {
+	hash := 0
+	for _, char := range seed {
+		hash += int(char)
 	}
-
-	return ""
+	if hash%2 == 0 {
+		return "HOME"
+	}
+	return "AWAY"
 }

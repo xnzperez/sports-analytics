@@ -42,9 +42,19 @@ export const DashboardPage = () => {
     }
   };
 
+  // Cargar estadísticas iniciales y configurar auto-refresh
   useEffect(() => {
     fetchUser();
     loadStats();
+
+    // AUTO-REFRESH: Consultar cada 5 segundos para ver el trabajo del Worker en tiempo real
+    const intervalId = setInterval(() => {
+      loadStats();
+      fetchUser(); // Para actualizar el bankroll también
+    }, 5000);
+
+    // Limpieza al salir de la página
+    return () => clearInterval(intervalId);
   }, [refreshTrigger, sportFilter]);
 
   const handleBetSuccess = () => {

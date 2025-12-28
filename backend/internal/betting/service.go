@@ -21,13 +21,15 @@ func NewService(repo *Repository) *Service {
 
 // PlaceBetRequest es el JSON que recibiremos del Frontend
 type PlaceBetRequest struct {
-	Title      string          `json:"title"`
-	SportKey   string          `json:"sport_key"`
-	StakeUnits float64         `json:"stake_units"`
-	Odds       float64         `json:"odds"`
-	IsParlay   bool            `json:"is_parlay"`
-	UserNotes  string          `json:"user_notes"`
-	Details    json.RawMessage `json:"details"` // <--- Campo Nuevo Importante
+	Title      string  `json:"title"`
+	SportKey   string  `json:"sport_key"`
+	StakeUnits float64 `json:"stake_units"`
+	Odds       float64 `json:"odds"`
+	IsParlay   bool    `json:"is_parlay"`
+	UserNotes  string  `json:"user_notes"`
+
+	// CAMBIO AQUÍ: Usar map[string]interface{} es más seguro para lo que envía Zod
+	Details map[string]interface{} `json:"details"`
 }
 
 // PlaceBet maneja la creación de la apuesta y el descuento de saldo
@@ -35,7 +37,7 @@ func (s *Service) PlaceBet(userID uuid.UUID, req PlaceBetRequest) (*Bet, error) 
 	var newBet *Bet
 
 	err := s.repo.RunTransaction(func(tx *gorm.DB) error {
-		// 1. Bloqueo y obtención de usuario
+		// 1. Bloqueo y obtención de usuario (Anti-Race Condition)
 		user, err := s.repo.GetUserBalanceForUpdate(tx, userID)
 		if err != nil {
 			return err
@@ -52,32 +54,57 @@ func (s *Service) PlaceBet(userID uuid.UUID, req PlaceBetRequest) (*Bet, error) 
 			return err
 		}
 
-		// 4. Crear la Apuesta
+		// 4. Preparar Datos (JSON y ExternalID)
+		detailsJSON := "{}"
+		var externalID string
+
+		// Extraemos datos clave del mapa genérico para indexarlos
+		if req.Details != nil {
+			// Intenta sacar el external_id para guardarlo en la columna indexada
+			if val, ok := req.Details["external_id"].(string); ok {
+				externalID = val
+			}
+
+			bytes, err := json.Marshal(req.Details)
+			if err == nil {
+				detailsJSON = string(bytes)
+			}
+		}
+
+		// 5. Crear la Apuesta
 		newBet = &Bet{
-			UserID:     userID, // CORREGIDO: Pasamos el UUID directo, sin .String()
+			UserID:     userID,
 			Title:      req.Title,
 			SportKey:   req.SportKey,
 			StakeUnits: req.StakeUnits,
 			Odds:       req.Odds,
 			IsParlay:   req.IsParlay,
 			Status:     "pending",
-			Details:    string(req.Details),
+			Details:    detailsJSON,
 			UserNotes:  req.UserNotes,
-		}
-		if err := s.repo.CreateBet(tx, newBet); err != nil {
-			return err
+
+			// --- OPTIMIZACIÓN DE ESCALABILIDAD ---
+			ExternalID: externalID, // Guardamos el ID real aquí
+			Provider:   "pinnacle", // Asumimos pinnacle por defecto
+			// -------------------------------------
 		}
 
-		// 5. Registrar Transacción (Ledger)
+		// 6. Registrar Transacción (Ledger)
 		transaction := &Transaction{
-			UserID:      userID, // CORREGIDO: UUID directo
-			Amount:      -req.StakeUnits,
+			UserID:      userID,
+			Amount:      -req.StakeUnits, // Negativo porque sale dinero
 			Type:        "BET_PLACED",
 			Description: "Apuesta realizada: " + req.Title,
-			ReferenceID: &newBet.ID, // CORREGIDO: Ahora los tipos coinciden (*uuid.UUID)
+			ReferenceID: &newBet.ID,
 		}
 
-		// Nota: Asegúrate de usar tx.Create, no s.repo... para mantener la atomicidad
+		// Guardamos todo usando la transacción (tx)
+		if err := tx.Create(newBet).Error; err != nil {
+			return err
+		}
+		// Nota: Asignamos el ID de la apuesta recién creada a la transacción
+		transaction.ReferenceID = &newBet.ID
+
 		if err := tx.Create(transaction).Error; err != nil {
 			return err
 		}
@@ -332,45 +359,41 @@ type BetDetails struct {
 
 // SettleMatch resuelve todas las apuestas de un partido específico
 // winner: "HOME" o "AWAY"
+// SettleMatch resuelve todas las apuestas de un partido específico
 func (s *Service) SettleMatch(matchID uuid.UUID, winner string) error {
 	var bets []Bet
 
-	// 1. Buscar todas las apuestas PENDIENTES que contengan ese match_id en su JSON details
-	// Usamos sintaxis de JSONB de Postgres para buscar dentro del texto
-	// Nota: Como details es string en tu struct pero JSONB en DB, usaremos LIKE por simplicidad en este MVP
-	// O mejor, traemos todas las pendientes y filtramos en código (más seguro para MVP)
+	// Traemos solo pendientes para optimizar
 	if err := s.repo.db.Where("status = ?", "pending").Find(&bets).Error; err != nil {
 		return err
 	}
 
-	log.Printf("🔍 Revisando %d apuestas pendientes...", len(bets))
-
+	resolvedCount := 0
 	for _, bet := range bets {
-		// Deserializar los detalles para ver a qué partido apostó
 		var details BetDetails
 		if err := json.Unmarshal([]byte(bet.Details), &details); err != nil {
-			log.Printf("⚠️ Error leyendo detalles apuesta %s: %v", bet.ID, err)
 			continue
 		}
 
-		// Si esta apuesta NO es del partido que estamos resolviendo, saltarla
+		// Match exacto
 		if details.MatchID != matchID.String() {
 			continue
 		}
 
-		// 2. Determinar si ganó o perdió
-		newStatus := "lost"
+		// Determinar resultado
+		newStatus := "LOST"
 		if details.Selection == winner {
-			newStatus = "won"
+			newStatus = "WON"
 		}
 
-		// 3. Resolver la apuesta (Atomicidad es clave aquí)
-		err := s.repo.ResolveBet(bet.ID.String(), newStatus)
-		if err != nil {
-			log.Printf("❌ Error resolviendo apuesta %s: %v", bet.ID, err)
-		} else {
-			log.Printf("✅ Apuesta %s marcada como %s", bet.ID, newStatus)
+		// Resolver atómicamente
+		if err := s.repo.ResolveBet(bet.ID.String(), newStatus); err == nil {
+			resolvedCount++
 		}
+	}
+
+	if resolvedCount > 0 {
+		log.Printf("✅ %d apuestas resueltas para el partido %s", resolvedCount, matchID)
 	}
 
 	return nil

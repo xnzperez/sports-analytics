@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-// Asegúrate de que esta ruta sea correcta según tu estructura
 import api from "../../../lib/axios";
 import { formatCurrency } from "../../../lib/utils";
-import { BetDetailsModal } from "./BetDetailsModal"; // <--- Asegúrate de tener este componente creado
+import { BetDetailsModal } from "./BetDetailsModal";
 import { Calendar, Trophy, AlertCircle, Loader2 } from "lucide-react";
 
 // Definición local de la interfaz para asegurar tipos (o impórtala de tus schemas)
@@ -34,7 +33,7 @@ export const BetHistory = ({ refreshTrigger }: Props) => {
         setLoading(true);
         setError(false);
 
-        const response = await api.get("/api/bets");
+        const response = await api.get("/api/bets?limit=100");
         const rawData = response.data;
 
         // --- CORRECCIÓN AQUÍ ---

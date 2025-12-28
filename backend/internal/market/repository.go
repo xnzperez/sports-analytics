@@ -23,9 +23,8 @@ func (r *Repository) SaveMatch(match *Match) error {
 
 func (r *Repository) GetMatches() ([]Match, error) {
 	var matches []Match
-
-	// CORREGIDO: Ordenamos por "starts_at" en lugar de "match_date"
-	result := r.db.Order("starts_at asc").Find(&matches)
-
+	// Eliminamos el debug y el .Unscoped() (ya vimos que no era soft-delete)
+	// Filtramos por status 'scheduled' para no mostrar partidos terminados en el modal
+	result := r.db.Where("status = ?", "scheduled").Order("starts_at asc").Find(&matches)
 	return matches, result.Error
 }

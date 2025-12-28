@@ -61,18 +61,21 @@ export const PlaceBetModal = ({ isOpen, onClose, onSuccess }: Props) => {
         .finally(() => setIsLoadingMatches(false));
     }
   }, [isOpen]);
-
   const handleMatchChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const matchId = e.target.value;
     setSelectedMatchId(matchId);
     setSelectedTeam(null);
     setValue("odds", 0);
-    setManualDetails({}); // Limpiamos detalles al cambiar partido
 
     const match = matches.find((m) => m.ID === matchId);
     if (match) {
       setValue("title", `${match.home_team} vs ${match.away_team}`);
       setValue("sport_key", match.sport_key);
+      // Guardamos la fecha real del partido en el estado manual
+      setManualDetails({
+        match_id: match.ID,
+        starts_at: match.starts_at, // Importante para el registro
+      });
     }
   };
 

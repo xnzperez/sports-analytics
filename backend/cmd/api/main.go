@@ -89,33 +89,48 @@ func main() {
 		return c.JSON(fiber.Map{"status": "ok", "message": "Systems Operational 🚀"})
 	})
 
-	// Rutas Públicas (Auth)
+	// ---------------------------------------------------------
+	// 7. DEFINICIÓN DE RUTAS
+	// ---------------------------------------------------------
+
+	// --- Health Check ---
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"status": "ok", "message": "Systems Operational 🚀"})
+	})
+
+	// --- Rutas de Emergencia / Debug (Públicas y sin prefijo) ---
+	// Úsala como: http://localhost:3000/sync-ahora
+	app.Get("/sync-ahora", marketHandler.SyncMarketsHandler)
+
+	// --- Grupo de Autenticación ---
 	authGroup := app.Group("/auth")
 	authGroup.Post("/register", authHandler.Register)
 	authGroup.Post("/login", authHandler.Login)
 
-	// --- RUTAS DE MARKET PÚBLICAS (TEMPORALES) ---
-	app.Post("/api/test-sync", marketHandler.SyncMarketsHandler)
-	app.Get("/api/markets", marketHandler.ListMarketsHandler)
-	app.Post("/api/admin/resolve", bettingHandler.SettleMatchHandler)
+	// --- Grupo de Markets (Públicos temporalmente para el Frontend) ---
+	// Estas rutas quedan bajo /api/...
+	marketsPublic := app.Group("/api")
+	marketsPublic.Get("/markets", marketHandler.ListMarketsHandler)
+	marketsPublic.Post("/test-sync", marketHandler.SyncMarketsHandler)
 
-	// --- RUTAS PROTEGIDAS (API) ---
+	// --- RUTAS PROTEGIDAS (Requieren Token JWT) ---
 	api := app.Group("/api", auth.Protected())
 
-	// User Routes
+	// Perfil de Usuario
 	api.Get("/me", authHandler.GetMe)
 
-	// Betting Routes (Apuestas)
+	// Gestión de Apuestas
 	api.Post("/bets", bettingHandler.PlaceBet)
 	api.Get("/bets", bettingHandler.GetBetsHandler)
 	api.Patch("/bets/:id/resolve", bettingHandler.ResolveBetHandler)
 
-	// Analytics & Ledger
+	// Estadísticas y Finanzas
 	api.Get("/stats", bettingHandler.GetStatsHandler)
 	api.Get("/transactions", bettingHandler.GetTransactionsHandler)
 
-	// Market Routes (Partidos)
+	// Rutas de Administración (Protegidas)
 	api.Post("/admin/sync", marketHandler.SyncMarketsHandler)
+	api.Post("/admin/resolve", bettingHandler.SettleMatchHandler)
 
 	// 8. Arrancar Servidor
 	port := os.Getenv("PORT")

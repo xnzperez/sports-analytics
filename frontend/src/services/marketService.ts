@@ -2,15 +2,15 @@ import axios from "axios";
 
 // Definimos la interfaz para que TypeScript nos ayude (puedes omitirlo si usas JS)
 export interface Match {
-  ID: string; // Nuestro UUID interno
-  external_id: string;
-  league: string;
+  ID: string; // GORM lo envía así por defecto
   home_team: string;
   away_team: string;
-  starts_at: string;
   home_odds: number;
   away_odds: number;
   sport_key: string;
+  league: string;
+  external_id: string;
+  starts_at: string;
 }
 
 const API_URL = "http://localhost:3000/api"; // O tu variable de entorno
