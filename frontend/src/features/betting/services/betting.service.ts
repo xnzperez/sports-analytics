@@ -17,14 +17,14 @@ export const placeBet = async (data: CreateBetFormData) => {
   const payload: PlaceBetRequest = {
     ...data,
     match_date: new Date().toISOString(),
-    // details: {},  <--- ¡BORRA ESTA LÍNEA ASESINA!
   };
 
   const response = await api.post("/api/bets", payload);
   return response.data;
 };
 
-export const getBets = async () => {
-  const response = await api.get<{ data: Bet[] }>("/api/bets?limit=20");
+export const getBets = async (sport?: string) => {
+  const query = sport ? `?limit=20&sport=${sport}` : "?limit=20";
+  const response = await api.get<{ data: Bet[] }>(`/api/bets${query}`);
   return response.data.data;
 };

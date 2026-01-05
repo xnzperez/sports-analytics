@@ -19,9 +19,10 @@ interface Bet {
 
 interface Props {
   refreshTrigger: number;
+  sportFilter?: string;
 }
 
-export const BetHistory = ({ refreshTrigger }: Props) => {
+export const BetHistory = ({ refreshTrigger, sportFilter }: Props) => {
   const [bets, setBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -33,7 +34,11 @@ export const BetHistory = ({ refreshTrigger }: Props) => {
         setLoading(true);
         setError(false);
 
-        const response = await api.get("/api/bets?limit=100");
+        const url = sportFilter
+          ? `/api/bets?limit=100&sport=${sportFilter}`
+          : `/api/bets?limit=100`;
+
+        const response = await api.get(url);
         const rawData = response.data;
 
         // --- CORRECCIÓN AQUÍ ---
@@ -48,6 +53,15 @@ export const BetHistory = ({ refreshTrigger }: Props) => {
           console.warn("Formato de respuesta desconocido:", rawData);
         }
 
+        // Client-side fallback filtering
+        if (sportFilter) {
+          betsArray = betsArray.filter(
+            (b) =>
+              b.sport_key === sportFilter ||
+              b.sport_key === sportFilter.toLowerCase()
+          );
+        }
+
         setBets(betsArray);
       } catch (err) {
         console.error("Error fetching bets:", err);
@@ -59,7 +73,7 @@ export const BetHistory = ({ refreshTrigger }: Props) => {
     };
 
     fetchBets();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, sportFilter]);
 
   if (loading) {
     return (
