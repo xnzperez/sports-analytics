@@ -14,17 +14,12 @@ export interface Match {
 }
 
 const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://tu-app-en-azure.azurecontainerapps.io/api";
+  "https://env-stakewise.victoriousflower-9df2d478.northcentralus.azurecontainerapps.io/api";
 
 export const getAvailableMatches = async (): Promise<Match[]> => {
   try {
-    // Ahora apuntará a Azure cuando lo subas a Vercel
+    console.log("Intentando conectar a:", `${API_URL}/markets`);
     const response = await axios.get(`${API_URL}/markets`);
-
-    // IMPORTANTE: Verifica si tu JSON de Go devuelve { "data": [...] }
-    // o si devuelve el array directamente.
-    // Si en Postman viste que los partidos están dentro de una llave "data", esto está bien:
     return response.data.data;
   } catch (error) {
     console.error("Error fetching matches:", error);
