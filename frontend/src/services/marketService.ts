@@ -13,18 +13,19 @@ export interface Match {
   starts_at: string;
 }
 
-// VOLVAMOS A LO SEGURO
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  "https://env-stakewise.victoriousflower-9df2d478.northcentralus.azurecontainerapps.io/api";
+  "https://env-stakewise.victoriousflower-9df2d478.northcentralus.azurecontainerapps.io";
 
-export const getAvailableMatches = async (): Promise<Match[]> => {
+export const getAvailableMatches = async () => {
   try {
-    const response = await axios.get(`${API_URL}/markets`);
-    // Si antes te funcionaba con .data.data, déjalo así:
-    return response.data.data;
+    // 2. Aquí le pegamos directo a la ruta que ya confirmaste que funciona en el navegador
+    const response = await axios.get(`${API_URL}/api/markets`);
+
+    // 3. Retornamos la data (asegurando que sea el array)
+    return response.data.data || response.data;
   } catch (error) {
-    console.error("Error fetching matches:", error);
+    console.error("Error cargando partidos:", error);
     return [];
   }
 };
