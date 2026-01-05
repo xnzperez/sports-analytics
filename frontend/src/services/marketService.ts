@@ -18,11 +18,17 @@ const API_URL =
 
 export const getAvailableMatches = async (): Promise<Match[]> => {
   try {
-    console.log("Intentando conectar a:", `${API_URL}/markets`);
     const response = await axios.get(`${API_URL}/markets`);
-    return response.data.data;
+
+    // ESTO es lo que necesitamos ver:
+    console.log("DATOS QUE LLEGAN:", response.data);
+
+    // Si tu backend devuelve { "data": [...] }, esto está bien.
+    // Pero si por alguna razón devuelve el array directo, cámbialo a:
+    // return response.data;
+    return response.data.data || response.data;
   } catch (error) {
-    console.error("Error fetching matches:", error);
+    console.error("ERROR REAL:", error);
     return [];
   }
 };
