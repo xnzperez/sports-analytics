@@ -1,6 +1,8 @@
 package market
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
@@ -13,12 +15,16 @@ func NewHandler(db *gorm.DB) *Handler {
 	return &Handler{service: NewService(db)}
 }
 
-// SyncMarketsHandler dispara la actualización con RapidAPI
 func (h *Handler) SyncMarketsHandler(c *fiber.Ctx) error {
+	fmt.Println("DEBUG: Iniciando SyncMarketsHandler...") // <-- Log de entrada
+
 	count, err := h.service.SyncEsports()
 	if err != nil {
+		fmt.Printf("DEBUG ERROR: %v\n", err) // <-- Log de error
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
+
+	fmt.Printf("DEBUG: Sincronización finalizada. Partidos: %d\n", count)
 	return c.JSON(fiber.Map{
 		"message":         "Sincronización completada",
 		"matches_updated": count,
