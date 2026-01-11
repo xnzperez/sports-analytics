@@ -1,4 +1,4 @@
-# 🏆 Sports Analytics Platform (Imagine Cup 2025)
+# 🏆 Sports Analytics (Imagine Cup 2025)
 
 > Plataforma Full Stack de análisis predictivo y gestión de apuestas deportivas, impulsada por Inteligencia Artificial y Cloud Computing.
 
@@ -42,7 +42,7 @@ El sistema sigue una **Clean Architecture** modularizada para garantizar escalab
 | **Cloud** | **Azure Container Apps** | Despliegue del Backend |
 | **Cloud DB** | **Azure Database for PostgreSQL** | Base de datos gestionada |
 
-## ✨ Características Clave (Key Features)
+## ✨ Características
 
 1.  **Gestión de Bankroll (Ledger):** Sistema de contabilidad de doble entrada simplificado. Cada apuesta genera una transacción inmutable.
 2.  **Auto-Settlement Worker:** Un proceso en segundo plano verifica periódicamente el estado de los partidos. Si un partido termina, el sistema determina automáticamente si la apuesta fue `WON` o `LOST` y acredita las ganancias.
@@ -81,8 +81,8 @@ pnpm dev
 ## ☁️ Infraestructura Azure
 El proyecto está diseñado para desplegarse utilizando Docker containers.
 
-**Backend:** Empaquetado en Docker y desplegado en Azure Container Apps.
+- **Backend:** Empaquetado en Docker y desplegado en Azure Container Apps.
 
-**Base de Datos:** Azure Database for PostgreSQL (Flexible Server).
+- **Base de Datos:** Azure Database for PostgreSQL (Flexible Server).
 
 Desarrollado por **Carlos Pérez** para la Microsoft Imagine Cup 2025.
