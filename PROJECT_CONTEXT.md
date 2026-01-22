@@ -93,7 +93,7 @@ Cómo ayuda al usuario a ser más rentable y responsable:
 
 ## Escalabilidad
 
-- Por qué Go y Azure son adecuados:
+- Por qué Go y Azure los considero adecuados:
   - Go (Golang) aporta alta concurrencia (goroutines), bajo uso de memoria y tiempos de arranque rápidos, ideal para microservicios y workers de alta frecuencia.
   - Fiber es un framework ligero y rápido para HTTP en Go, con baja latencia.
   - Docker + Azure Container Apps permite escalar réplicas del backend horizontalmente; el worker puede ejecutarse en réplicas separadas o como Job/Service independiente.
