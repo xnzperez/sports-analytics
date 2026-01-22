@@ -1,4 +1,4 @@
-PROJECT CONTEXT — Sports Analytics (Imagine Cup 2025)
+Sports Analytics (Imagine Cup 2025)
 
 ## Resumen Ejecutivo
 
