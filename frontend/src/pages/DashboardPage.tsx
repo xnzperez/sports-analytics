@@ -69,7 +69,7 @@ export const DashboardPage = () => {
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
-              Dashboard de Estrategia
+              Dashboard
             </h1>
             <p className="text-slate-400">Análisis para {user?.username}</p>
           </div>
@@ -95,7 +95,7 @@ export const DashboardPage = () => {
         <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/40 p-4 rounded-xl border border-slate-800">
           <div className="flex items-center gap-2 text-slate-300">
             <Filter size={18} className="text-emerald-500" />
-            <span className="text-sm font-medium">Filtrar rendimiento:</span>
+            <span className="text-sm font-medium">Filtrar Categoría:</span>
           </div>
           <div className="flex gap-2 flex-wrap">
             {["", "lol", "valorant", "cs2", "football", "basketball"].map(
